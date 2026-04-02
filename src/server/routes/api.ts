@@ -94,11 +94,7 @@ router.post('/users/:id/card', (req, res) => {
   const existing = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
   if (existing) { res.status(409).json({ error: 'User already has a card' }); return; }
 
-  const { card_id, tx_max_sats = 1000, day_max_sats = 5000 } = req.body as {
-    card_id?: string;
-    tx_max_sats?: number;
-    day_max_sats?: number;
-  };
+  const { card_id } = req.body as { card_id?: string };
 
   const keys = generateKeys();
   const setupToken = uuidv4().replace(/-/g, '');
@@ -106,7 +102,7 @@ router.post('/users/:id/card', (req, res) => {
   const result = db.prepare(`
     INSERT INTO cards (user_id, k0, k1, k2, k3, k4, setup_token, tx_max_sats, day_max_sats, card_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, tx_max_sats, day_max_sats, card_id ?? null);
+  `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, 999999999, 999999999, card_id ?? null);
 
   res.status(201).json({ id: result.lastInsertRowid, setup_token: setupToken });
 });

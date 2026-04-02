@@ -82,7 +82,7 @@ router.get('/users/:id', (req, res) => {
 
   // Card info — redact keys from response
   const card = db
-    .prepare('SELECT id, user_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, programmed_at, enabled, created_at FROM cards WHERE user_id = ?')
+    .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, programmed_at, enabled, created_at FROM cards WHERE user_id = ?')
     .get(userId) as any;
 
   const transactions = db
@@ -137,15 +137,11 @@ router.post('/users/:id/card', (req, res) => {
 
   const keys = generateKeys();
   const setupToken = uuidv4().replace(/-/g, '');
-  const { tx_max_sats = 1000, day_max_sats = 5000 } = req.body as {
-    tx_max_sats?: number;
-    day_max_sats?: number;
-  };
 
   const result = db.prepare(`
     INSERT INTO cards (user_id, k0, k1, k2, k3, k4, setup_token, tx_max_sats, day_max_sats)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, tx_max_sats, day_max_sats);
+  `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, 999999999, 999999999);
 
   res.status(201).json({ id: result.lastInsertRowid, setup_token: setupToken });
 });
@@ -202,6 +198,13 @@ router.patch('/users/:id/card/limits', (req, res) => {
   const newDay = day_max_sats ?? existing.day_max_sats;
   db.prepare('UPDATE cards SET tx_max_sats=?, day_max_sats=? WHERE user_id=?').run(newTx, newDay, userId);
   res.json({ tx_max_sats: newTx, day_max_sats: newDay });
+});
+
+router.delete('/users/:id/card', (req, res) => {
+  const userId = Number(req.params.id);
+  const deleted = db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);
+  if (deleted.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
+  res.json({ deleted: true });
 });
 
 router.post('/users/:id/card/enable', (req, res) => {

@@ -15,10 +15,9 @@ interface UserDetail {
   ln_address_enabled: number;
   card: {
     id: number;
+    card_id: string | null;
     uid: string | null;
     counter: number;
-    tx_max_sats: number;
-    day_max_sats: number;
     day_spent_sats: number;
     setup_token: string | null;
     programmed_at: number | null;
@@ -42,8 +41,6 @@ export default function AdminUserDetail() {
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc] = useState('');
   const [creditError, setCreditError] = useState('');
-  const [txMaxInput, setTxMaxInput] = useState('');
-  const [dayMaxInput, setDayMaxInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
 
@@ -52,10 +49,6 @@ export default function AdminUserDetail() {
     if (!res.ok) { setError('User not found'); return; }
     const data = await res.json();
     setUser(data);
-    if (data.card) {
-      setTxMaxInput(String(data.card.tx_max_sats));
-      setDayMaxInput(String(data.card.day_max_sats));
-    }
     if (data.card?.setup_token) {
       const qrRes = await fetch(`/api/admin/users/${id}/card/qr`, { headers: authHeaders() });
       if (qrRes.ok) {
@@ -74,16 +67,23 @@ export default function AdminUserDetail() {
     const res = await fetch(`/api/admin/users/${id}/card`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tx_max_sats: parseInt(txMaxInput) || 1000,
-        day_max_sats: parseInt(dayMaxInput) || 5000,
-      }),
+      body: JSON.stringify({}),
     });
     if (!res.ok) {
       const d = await res.json();
       alert(d.error);
       return;
     }
+    load();
+  }
+
+  async function deleteCard() {
+    if (!confirm('Delete this card? This cannot be undone.')) return;
+    const res = await fetch(`/api/admin/users/${id}/card`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
     load();
   }
 
@@ -116,20 +116,6 @@ export default function AdminUserDetail() {
     const res = await fetch(`/api/admin/users/${id}/card/reprogram`, {
       method: 'POST',
       headers: authHeaders(),
-    });
-    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
-    load();
-  }
-
-  async function updateLimits(e: React.FormEvent) {
-    e.preventDefault();
-    const res = await fetch(`/api/admin/users/${id}/card/limits`, {
-      method: 'PATCH',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tx_max_sats: parseInt(txMaxInput),
-        day_max_sats: parseInt(dayMaxInput),
-      }),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
     load();
@@ -201,16 +187,6 @@ export default function AdminUserDetail() {
         {!user.card ? (
           <form onSubmit={createCard}>
             <p className="muted" style={{ marginBottom: 12 }}>No card assigned yet. Create one to generate a programming QR.</p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-              <div>
-                <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>TX max (sats)</label>
-                <input style={{ width: 120 }} type="number" value={txMaxInput} onChange={(e) => setTxMaxInput(e.target.value)} placeholder="1000" min="1" />
-              </div>
-              <div>
-                <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>Day max (sats)</label>
-                <input style={{ width: 120 }} type="number" value={dayMaxInput} onChange={(e) => setDayMaxInput(e.target.value)} placeholder="5000" min="1" />
-              </div>
-            </div>
             <button type="submit" className="btn-primary">Create Card</button>
           </form>
         ) : (
@@ -257,28 +233,11 @@ export default function AdminUserDetail() {
                 <table style={{ marginBottom: 12 }}>
                   <tbody>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Status</td><td>{user.card.enabled ? <span className="badge badge-green">Enabled</span> : <span className="badge badge-red">Disabled</span>}</td></tr>
+                    {user.card.card_id && <tr><td className="muted" style={{ paddingLeft: 0 }}>Card No.</td><td><code>{user.card.card_id}</code></td></tr>}
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Day spent</td><td>{user.card.day_spent_sats.toLocaleString()} sats</td></tr>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Counter</td><td>{user.card.counter === -1 ? 'Never tapped' : user.card.counter}</td></tr>
                   </tbody>
                 </table>
-
-                {/* Limits form */}
-                <form onSubmit={updateLimits} style={{ marginBottom: 12 }}>
-                  <p className="muted" style={{ marginBottom: 6, fontSize: 12 }}>Spending limits</p>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <div>
-                      <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 11 }}>TX max (sats)</label>
-                      <input style={{ width: 110 }} type="number" value={txMaxInput} onChange={(e) => setTxMaxInput(e.target.value)} min="1" required />
-                    </div>
-                    <div>
-                      <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 11 }}>Day max (sats)</label>
-                      <input style={{ width: 110 }} type="number" value={dayMaxInput} onChange={(e) => setDayMaxInput(e.target.value)} min="1" required />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                      <button type="submit" className="btn-ghost" style={{ fontSize: 12 }}>Save limits</button>
-                    </div>
-                  </div>
-                </form>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {user.card.enabled ? (
@@ -287,6 +246,7 @@ export default function AdminUserDetail() {
                     <button className="btn-primary" onClick={() => toggleCard(true)}>Enable Card</button>
                   )}
                   <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Reprogram</button>
+                  <button className="btn-danger" onClick={deleteCard} style={{ fontSize: 12 }}>Delete Card</button>
                 </div>
               </div>
             </div>
