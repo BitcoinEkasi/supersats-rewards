@@ -8,6 +8,7 @@ interface UserRow {
   display_name: string;
   balance_sats: number;
   card_id: number | null;
+  card_number: string | null;
   programmed_at: number | null;
   card_enabled: number | null;
 }
@@ -128,7 +129,10 @@ export default function AdminDashboard() {
                   {u.balance_sats.toLocaleString()} sats
                   {zarPerSat && <span className="muted" style={{ marginLeft: 6 }}>({formatZAR(u.balance_sats, zarPerSat)})</span>}
                 </td>
-                <td>{cardStatus(u)}</td>
+                <td>
+                  {cardStatus(u)}
+                  {u.card_number && <code style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{u.card_number}</code>}
+                </td>
                 <td style={{ textAlign: 'right' }}>
                   <span style={{ color: '#f7931a', fontSize: 13 }}>View →</span>
                 </td>
