@@ -82,7 +82,7 @@ router.get('/users/:id', (req, res) => {
 
   // Card info — redact keys from response
   const card = db
-    .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, programmed_at, enabled, created_at FROM cards WHERE user_id = ?')
+    .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, wipe_token, programmed_at, enabled, created_at FROM cards WHERE user_id = ?')
     .get(userId) as any;
 
   const transactions = db
@@ -224,6 +224,37 @@ router.delete('/users/:id/card', (req, res) => {
   const deleted = db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);
   if (deleted.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
   res.json({ deleted: true });
+});
+
+// Generate a wipe token for the card (allows re-use with a different user/programming)
+router.post('/users/:id/card/wipe', (req, res) => {
+  const userId = Number(req.params.id);
+  const card = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
+  if (!card) { res.status(404).json({ error: 'No card found' }); return; }
+
+  const wipeToken = uuidv4().replace(/-/g, '');
+  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipeToken, userId);
+  res.json({ wipe_token: wipeToken });
+});
+
+router.get('/users/:id/card/wipe/qr', async (req, res) => {
+  const userId = Number(req.params.id);
+  const card = db
+    .prepare('SELECT wipe_token FROM cards WHERE user_id = ?')
+    .get(userId) as { wipe_token: string | null } | undefined;
+
+  if (!card) { res.status(404).json({ error: 'No card for this user' }); return; }
+  if (!card.wipe_token) {
+    res.status(400).json({ error: 'No wipe token — generate one first' });
+    return;
+  }
+
+  const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
+  const wipeUrl = `${proto}://${DOMAIN()}/api/card/wipe/${card.wipe_token}`;
+
+  const qrPng = await QRCode.toBuffer(wipeUrl, { type: 'png', width: 400 });
+  res.set('Content-Type', 'image/png');
+  res.send(qrPng);
 });
 
 router.post('/users/:id/card/enable', (req, res) => {

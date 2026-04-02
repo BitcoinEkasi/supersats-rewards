@@ -13,3 +13,6 @@ const cardColumns = (db.prepare(`PRAGMA table_info(cards)`).all() as { name: str
 if (!cardColumns.includes('card_id')) {
   db.exec('ALTER TABLE cards ADD COLUMN card_id TEXT');
 }
+if (!cardColumns.includes('wipe_token')) {
+  db.exec('ALTER TABLE cards ADD COLUMN wipe_token TEXT UNIQUE');
+}

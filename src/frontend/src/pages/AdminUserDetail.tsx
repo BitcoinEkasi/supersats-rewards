@@ -20,6 +20,7 @@ interface UserDetail {
     counter: number;
     day_spent_sats: number;
     setup_token: string | null;
+    wipe_token: string | null;
     programmed_at: number | null;
     enabled: number;
   } | null;
@@ -43,6 +44,7 @@ export default function AdminUserDetail() {
   const [creditError, setCreditError] = useState('');
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch(`/api/admin/users/${id}`, { headers: authHeaders() });
@@ -58,6 +60,7 @@ export default function AdminUserDetail() {
     } else {
       setQrUrl(null);
     }
+    setWipeQrUrl(null);
   }
 
   useEffect(() => { load(); }, [id]);
@@ -129,6 +132,22 @@ export default function AdminUserDetail() {
       headers: authHeaders(),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
+  }
+
+  async function wipeCard() {
+    if (!confirm('This will generate a wipe token so the card can be wiped and re-used. Continue?')) return;
+    const res = await fetch(`/api/admin/users/${id}/card/wipe`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    // Load wipe QR
+    const qrRes = await fetch(`/api/admin/users/${id}/card/wipe/qr`, { headers: authHeaders() });
+    if (qrRes.ok) {
+      const blob = await qrRes.blob();
+      setWipeQrUrl(URL.createObjectURL(blob));
+    }
     load();
   }
 
@@ -262,10 +281,32 @@ export default function AdminUserDetail() {
                     <button className="btn-primary" onClick={() => toggleCard(true)}>Enable Card</button>
                   )}
                   <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Reprogram</button>
+                  <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
                   <button className="btn-danger" onClick={deleteCard} style={{ fontSize: 12 }}>Delete Card</button>
                 </div>
               </div>
             </div>
+
+            {/* Wipe QR */}
+            {wipeQrUrl && (
+              <div style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid #333' }}>
+                <p className="muted" style={{ marginBottom: 8, fontSize: 13 }}>Scan with Boltcard Programmer app to wipe card keys:</p>
+                <img
+                  src={wipeQrUrl}
+                  alt="Wipe QR"
+                  style={{ width: 200, height: 200, display: 'block', borderRadius: 8, marginBottom: 8 }}
+                />
+                <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>On mobile, tap below instead:</p>
+                <a
+                  href={`boltcard://wipe?url=${encodeURIComponent(`${window.location.origin}/api/card/wipe/${user.card!.wipe_token}`)}`}
+                  className="btn-ghost"
+                  style={{ display: 'inline-block', fontSize: 12, padding: '6px 12px' }}
+                >
+                  Open in Programmer App (Wipe)
+                </a>
+                <p className="muted" style={{ marginTop: 8, fontSize: 11 }}>After wiping, a new setup QR will be generated automatically.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
