@@ -107,6 +107,15 @@ router.post('/users/:id/card', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid, setup_token: setupToken });
 });
 
+// ── DELETE /api/v1/users/:id/card ────────────────────────────────────────────
+
+router.delete('/users/:id/card', (req, res) => {
+  const userId = Number(req.params.id);
+  const deleted = db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);
+  if (deleted.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
+  res.json({ deleted: true });
+});
+
 // ── POST /api/v1/users/:id/credit ─────────────────────────────────────────────
 
 router.post('/users/:id/credit', (req, res) => {
