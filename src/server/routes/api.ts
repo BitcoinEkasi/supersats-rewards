@@ -51,7 +51,7 @@ router.post('/users', (req, res) => {
 router.get('/users/:id', (req, res) => {
   const userId = Number(req.params.id);
   const user = db
-    .prepare('SELECT id, username, display_name, balance_sats, ln_address_enabled, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, balance_sats, ln_address_enabled, magic_token, created_at FROM users WHERE id = ?')
     .get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
