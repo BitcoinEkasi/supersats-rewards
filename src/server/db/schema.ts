@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS cards (
   day_max_sats INTEGER NOT NULL DEFAULT 5000,
   day_spent_sats INTEGER NOT NULL DEFAULT 0,
   day_reset_at INTEGER NOT NULL DEFAULT 0,
+  card_id TEXT,
   setup_token TEXT UNIQUE,
   programmed_at INTEGER,
   enabled INTEGER NOT NULL DEFAULT 1,

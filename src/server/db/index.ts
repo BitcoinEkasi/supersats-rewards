@@ -7,3 +7,9 @@ export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.exec(SQL_SCHEMA);
+
+// Migrations for existing databases
+const cardColumns = (db.prepare(`PRAGMA table_info(cards)`).all() as { name: string }[]).map(c => c.name);
+if (!cardColumns.includes('card_id')) {
+  db.exec('ALTER TABLE cards ADD COLUMN card_id TEXT');
+}

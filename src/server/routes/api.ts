@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/index.js';
 import { requireApiKey } from '../middleware/apiKeyAuth.js';
+import { generateKeys } from '../services/crypto.js';
 
 const router = Router();
 router.use(requireApiKey);
@@ -55,16 +56,20 @@ router.get('/users/:id', (req, res) => {
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
   const card = db
-    .prepare('SELECT id, programmed_at, enabled, uid, tx_max_sats, day_max_sats FROM cards WHERE user_id = ?')
+    .prepare('SELECT id, card_id, programmed_at, enabled, uid, tx_max_sats, day_max_sats FROM cards WHERE user_id = ?')
     .get(userId) as any;
+
+  const transactions = db
+    .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
+    .all(userId);
 
   res.json({
     ...user,
     ln_address: user.ln_address_enabled ? `${user.username}@${DOMAIN()}` : null,
-    magic_link_url: undefined, // not exposed in external API
     card: card
       ? {
           id: card.id,
+          card_id: card.card_id,
           programmed: !!card.programmed_at,
           enabled: !!card.enabled,
           uid: card.uid,
@@ -72,7 +77,35 @@ router.get('/users/:id', (req, res) => {
           day_max_sats: card.day_max_sats,
         }
       : null,
+    transactions,
   });
+});
+
+// ── POST /api/v1/users/:id/card ──────────────────────────────────────────────
+
+router.post('/users/:id/card', (req, res) => {
+  const userId = Number(req.params.id);
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  const existing = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
+  if (existing) { res.status(409).json({ error: 'User already has a card' }); return; }
+
+  const { card_id, tx_max_sats = 1000, day_max_sats = 5000 } = req.body as {
+    card_id?: string;
+    tx_max_sats?: number;
+    day_max_sats?: number;
+  };
+
+  const keys = generateKeys();
+  const setupToken = uuidv4().replace(/-/g, '');
+
+  const result = db.prepare(`
+    INSERT INTO cards (user_id, k0, k1, k2, k3, k4, setup_token, tx_max_sats, day_max_sats, card_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, tx_max_sats, day_max_sats, card_id ?? null);
+
+  res.status(201).json({ id: result.lastInsertRowid, setup_token: setupToken });
 });
 
 // ── POST /api/v1/users/:id/credit ─────────────────────────────────────────────
