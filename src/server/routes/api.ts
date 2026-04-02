@@ -63,9 +63,12 @@ router.get('/users/:id', (req, res) => {
     .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(userId);
 
+  const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
+
   res.json({
     ...user,
     ln_address: user.ln_address_enabled ? `${user.username}@${DOMAIN()}` : null,
+    magic_link_url: `${proto}://${DOMAIN()}/u/${user.magic_token}`,
     card: card
       ? {
           id: card.id,
