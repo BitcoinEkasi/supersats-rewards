@@ -125,6 +125,25 @@ router.post('/users/:id/credit', (req, res) => {
   res.json({ balance_sats: updated.balance_sats });
 });
 
+// ── Withdraw all ──────────────────────────────────────────────────────────────
+
+router.post('/users/:id/withdraw-all', (req, res) => {
+  const userId = Number(req.params.id);
+  const user = db.prepare('SELECT id, balance_sats FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  if (user.balance_sats <= 0) { res.status(400).json({ error: 'Balance is already zero' }); return; }
+
+  const amount = user.balance_sats;
+  db.transaction(() => {
+    db.prepare('UPDATE users SET balance_sats = 0 WHERE id = ?').run(userId);
+    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
+      userId, 'spend', amount, 'Admin withdrawal'
+    );
+  })();
+
+  res.json({ withdrawn_sats: amount, balance_sats: 0 });
+});
+
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
 router.post('/users/:id/card', (req, res) => {

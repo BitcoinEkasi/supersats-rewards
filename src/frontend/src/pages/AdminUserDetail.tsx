@@ -77,6 +77,17 @@ export default function AdminUserDetail() {
     load();
   }
 
+  async function withdrawAll() {
+    if (!user || user.balance_sats <= 0) return;
+    if (!confirm(`Withdraw all ${user.balance_sats.toLocaleString()} sats from this account?`)) return;
+    const res = await fetch(`/api/admin/users/${id}/withdraw-all`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
+  }
+
   async function deleteCard() {
     if (!confirm('Delete this card? This cannot be undone.')) return;
     const res = await fetch(`/api/admin/users/${id}/card`, {
@@ -164,6 +175,11 @@ export default function AdminUserDetail() {
             <button type="submit" className="btn-primary">Credit</button>
           </form>
           {creditError && <p className="error-text" style={{ marginTop: 6 }}>{creditError}</p>}
+          {user.balance_sats > 0 && (
+            <button className="btn-danger" onClick={withdrawAll} style={{ marginTop: 10, fontSize: 12 }}>
+              Withdraw All
+            </button>
+          )}
         </div>
 
         {/* Magic link */}
