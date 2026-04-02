@@ -91,22 +91,17 @@ router.get('/wipe/:token', (req, res) => {
     WHERE id=?
   `).run(newKeys.k0, newKeys.k1, newKeys.k2, newKeys.k3, newKeys.k4, newSetupToken, card.id);
 
-  const proto = DOMAIN.startsWith('localhost') ? 'http' : 'https';
-
   res.json({
     protocol_name: 'create_bolt_card_response',
     protocol_version: 2,
     card_name: 'BoltCard',
     lnurlw_base: `lnurlw://${DOMAIN}/lnurlw`,
     uid_privacy: 'Y',
-    // Return current (old) keys so programmer app can wipe them from the card
     k0: currentKeys.k0,
     k1: currentKeys.k1,
     k2: currentKeys.k2,
     k3: currentKeys.k3,
     k4: currentKeys.k4,
-    // Include new setup URL so programmer app can offer immediate re-programming
-    new_setup_url: `${proto}://${DOMAIN}/api/card/setup/${newSetupToken}`,
   });
 });
 

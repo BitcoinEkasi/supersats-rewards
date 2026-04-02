@@ -261,9 +261,8 @@ router.get('/users/:id/card/wipe/qr', async (req, res) => {
 
   const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
   const wipeUrl = `${proto}://${DOMAIN()}/api/card/wipe/${card.wipe_token}`;
-  const deeplink = `boltcard://wipe?url=${encodeURIComponent(wipeUrl)}`;
 
-  const qrPng = await QRCode.toBuffer(deeplink, { type: 'png', width: 400 });
+  const qrPng = await QRCode.toBuffer(wipeUrl, { type: 'png', width: 400 });
   res.set('Content-Type', 'image/png');
   res.send(qrPng);
 });
