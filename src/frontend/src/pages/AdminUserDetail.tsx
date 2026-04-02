@@ -45,6 +45,8 @@ export default function AdminUserDetail() {
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
+  const [editingCardId, setEditingCardId] = useState(false);
+  const [cardIdInput, setCardIdInput] = useState('');
 
   async function load() {
     const res = await fetch(`/api/admin/users/${id}`, { headers: authHeaders() });
@@ -148,6 +150,17 @@ export default function AdminUserDetail() {
       const blob = await qrRes.blob();
       setWipeQrUrl(URL.createObjectURL(blob));
     }
+    load();
+  }
+
+  async function saveCardId(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch(`/api/admin/users/${id}/card/card-id`, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_id: cardIdInput }),
+    });
+    setEditingCardId(false);
     load();
   }
 
@@ -268,7 +281,29 @@ export default function AdminUserDetail() {
                 <table style={{ marginBottom: 12 }}>
                   <tbody>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Status</td><td>{user.card.enabled ? <span className="badge badge-green">Enabled</span> : <span className="badge badge-red">Disabled</span>}</td></tr>
-                    {user.card.card_id && <tr><td className="muted" style={{ paddingLeft: 0 }}>Card No.</td><td><code>{user.card.card_id}</code></td></tr>}
+                    <tr>
+                      <td className="muted" style={{ paddingLeft: 0 }}>Card No.</td>
+                      <td>
+                        {editingCardId ? (
+                          <form onSubmit={saveCardId} style={{ display: 'inline-flex', gap: 4 }}>
+                            <input
+                              autoFocus
+                              value={cardIdInput}
+                              onChange={e => setCardIdInput(e.target.value)}
+                              placeholder="Card number"
+                              style={{ width: 120, fontSize: 12 }}
+                            />
+                            <button type="submit" className="btn-primary" style={{ fontSize: 11, padding: '2px 8px' }}>Save</button>
+                            <button type="button" className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setEditingCardId(false)}>Cancel</button>
+                          </form>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {user.card.card_id ? <code>{user.card.card_id}</code> : <span className="muted" style={{ fontSize: 12 }}>—</span>}
+                            <button className="btn-ghost" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => { setCardIdInput(user.card!.card_id ?? ''); setEditingCardId(true); }}>Edit</button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Day spent</td><td>{user.card.day_spent_sats.toLocaleString()} sats</td></tr>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Counter</td><td>{user.card.counter === -1 ? 'Never tapped' : user.card.counter}</td></tr>
                   </tbody>

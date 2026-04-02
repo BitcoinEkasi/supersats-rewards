@@ -226,6 +226,16 @@ router.delete('/users/:id/card', (req, res) => {
   res.json({ deleted: true });
 });
 
+// Update card number (card_id label assigned from TSK or manually)
+router.patch('/users/:id/card/card-id', (req, res) => {
+  const userId = Number(req.params.id);
+  const { card_id } = req.body as { card_id?: string };
+  const existing = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
+  if (!existing) { res.status(404).json({ error: 'No card found' }); return; }
+  db.prepare('UPDATE cards SET card_id = ? WHERE user_id = ?').run(card_id?.trim() || null, userId);
+  res.json({ card_id: card_id?.trim() || null });
+});
+
 // Generate a wipe token for the card (allows re-use with a different user/programming)
 router.post('/users/:id/card/wipe', (req, res) => {
   const userId = Number(req.params.id);
