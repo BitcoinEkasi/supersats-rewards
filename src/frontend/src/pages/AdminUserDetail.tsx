@@ -144,13 +144,13 @@ export default function AdminUserDetail() {
       headers: authHeaders(),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
-    // Load wipe QR
+    // Reload user data first (load() resets wipeQrUrl to null), then fetch QR
+    await load();
     const qrRes = await fetch(`/api/admin/users/${id}/card/wipe/qr`, { headers: authHeaders() });
     if (qrRes.ok) {
       const blob = await qrRes.blob();
       setWipeQrUrl(URL.createObjectURL(blob));
     }
-    load();
   }
 
   async function saveCardId(e: React.FormEvent) {
