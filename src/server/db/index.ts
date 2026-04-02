@@ -14,5 +14,6 @@ if (!cardColumns.includes('card_id')) {
   db.exec('ALTER TABLE cards ADD COLUMN card_id TEXT');
 }
 if (!cardColumns.includes('wipe_token')) {
-  db.exec('ALTER TABLE cards ADD COLUMN wipe_token TEXT UNIQUE');
+  db.exec('ALTER TABLE cards ADD COLUMN wipe_token TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_wipe_token ON cards(wipe_token)');
 }
