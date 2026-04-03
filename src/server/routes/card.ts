@@ -38,9 +38,9 @@ router.get('/setup/:token', (req, res) => {
     return;
   }
 
-  // Mark as programmed on first fetch (idempotent)
+  // Mark as programmed and clear setup token on first fetch
   if (!card.programmed_at) {
-    db.prepare('UPDATE cards SET programmed_at = unixepoch() WHERE id = ?').run(card.id);
+    db.prepare('UPDATE cards SET programmed_at = unixepoch(), setup_token = NULL WHERE id = ?').run(card.id);
   }
 
   res.json({
