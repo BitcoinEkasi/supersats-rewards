@@ -293,8 +293,9 @@ export default function AdminUserDetail() {
                       <div style={{ padding: '12px 0' }}>
                         <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
                         <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                          Card <code>{c.previous_card_id}</code> replaced with card <code>{c.card_id ?? c.uid}</code> on {formatTs(c.programmed_at)}.
+                          Card <code>{c.previous_card_id}</code> replaced with card <code>{c.card_id ?? c.uid ?? '—'}</code> on {formatTs(c.programmed_at)}.
                         </p>
+                        {!c.card_id && <p style={{ fontSize: 12, marginTop: 4, color: '#f59e0b' }}>⚠ Enter the new card serial number in Card No. below.</p>}
                         {c.uid && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>UID: <code>{c.uid}</code></p>}
                       </div>
                     );
@@ -303,9 +304,16 @@ export default function AdminUserDetail() {
                     return (
                       <div style={{ padding: '12px 0' }}>
                         <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
-                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                          Card <code>{c.card_id ?? c.uid}</code> successfully programmed on {formatTs(c.programmed_at)}.
-                        </p>
+                        {c.card_id ? (
+                          <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                            Card <code>{c.card_id}</code> successfully programmed on {formatTs(c.programmed_at)}.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Successfully programmed on {formatTs(c.programmed_at)}.</p>
+                            <p style={{ fontSize: 12, marginTop: 4, color: '#f59e0b' }}>⚠ Enter the card serial number in Card No. below.</p>
+                          </>
+                        )}
                         {c.uid && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>UID: <code>{c.uid}</code></p>}
                       </div>
                     );
