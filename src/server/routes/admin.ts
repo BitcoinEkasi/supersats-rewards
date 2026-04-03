@@ -17,7 +17,8 @@ const DOMAIN = () => process.env.DOMAIN!;
 router.get('/dashboard', async (_req, res) => {
   const users = db.prepare(`
     SELECT u.id, u.username, u.display_name, u.balance_sats, u.created_at,
-           c.id AS card_id, c.card_id AS card_number, c.programmed_at, c.enabled AS card_enabled, c.uid
+           c.id AS card_id, c.card_id AS card_number, c.programmed_at, c.enabled AS card_enabled, c.uid,
+           c.wiped_at, c.setup_token
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
     ORDER BY u.created_at DESC

@@ -11,6 +11,8 @@ interface UserRow {
   card_number: string | null;
   programmed_at: number | null;
   card_enabled: number | null;
+  wiped_at: number | null;
+  setup_token: string | null;
 }
 
 function authHeaders() {
@@ -58,8 +60,9 @@ export default function AdminDashboard() {
   }
 
   function cardStatus(row: UserRow) {
-    if (!row.card_id) return <span className="badge badge-gray">No card</span>;
-    if (!row.programmed_at) return <span className="badge badge-yellow">Unprogrammed</span>;
+    if (!row.card_id) return <span className="badge" style={{ background: '#333', color: '#aaa' }}>No card</span>;
+    if (row.setup_token || !row.programmed_at) return <span className="badge badge-yellow">Awaiting programming</span>;
+    if (row.wiped_at) return <span className="badge" style={{ background: '#b45309', color: '#fff' }}>Wiped</span>;
     if (!row.card_enabled) return <span className="badge badge-red">Disabled</span>;
     return <span className="badge badge-green">Active</span>;
   }

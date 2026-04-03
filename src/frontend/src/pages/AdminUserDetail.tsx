@@ -246,7 +246,16 @@ export default function AdminUserDetail() {
 
       {/* Card section */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 14 }}>BoltCard</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <h2 style={{ fontSize: 16 }}>BoltCard</h2>
+          {user.card && (() => {
+            const c = user.card!;
+            if (c.setup_token || !c.programmed_at) return <span className="badge badge-yellow">Awaiting programming</span>;
+            if (c.wiped_at) return <span className="badge" style={{ background: '#b45309', color: '#fff' }}>Wiped</span>;
+            if (!c.enabled) return <span className="badge badge-red">Disabled</span>;
+            return <span className="badge badge-green">Active</span>;
+          })()}
+        </div>
         {!user.card ? (
           <form onSubmit={createCard}>
             <p className="muted" style={{ marginBottom: 12 }}>No card assigned yet. Create one to generate a programming QR.</p>
