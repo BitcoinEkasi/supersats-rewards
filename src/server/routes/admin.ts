@@ -82,7 +82,7 @@ router.get('/users/:id', (req, res) => {
 
   // Card info — redact keys from response
   const card = db
-    .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, wipe_token, programmed_at, enabled, created_at FROM cards WHERE user_id = ?')
+    .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, wipe_token, programmed_at, wiped_at, previous_card_id, replaced_at, enabled, created_at FROM cards WHERE user_id = ?')
     .get(userId) as any;
 
   const transactions = db
@@ -144,6 +144,23 @@ router.post('/users/:id/withdraw-all', (req, res) => {
   res.json({ withdrawn_sats: amount, balance_sats: 0 });
 });
 
+// Delete user (requires zero balance; also removes card and transactions)
+router.delete('/users/:id', (req, res) => {
+  const userId = Number(req.params.id);
+  const user = db.prepare('SELECT id, balance_sats FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  if (user.balance_sats > 0) {
+    res.status(400).json({ error: 'Withdraw all funds before deleting this user' });
+    return;
+  }
+  db.transaction(() => {
+    db.prepare('DELETE FROM transactions WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  })();
+  res.json({ deleted: true });
+});
+
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
 router.post('/users/:id/card', (req, res) => {
@@ -188,16 +205,17 @@ router.get('/users/:id/card/qr', async (req, res) => {
 // Regenerate setup token + new keys (reprogram / replace card)
 router.post('/users/:id/card/reprogram', (req, res) => {
   const userId = Number(req.params.id);
-  const existing = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
+  const existing = db.prepare('SELECT id, card_id FROM cards WHERE user_id = ?').get(userId) as any;
   if (!existing) { res.status(404).json({ error: 'No card found' }); return; }
 
   const keys = generateKeys();
   const setupToken = uuidv4().replace(/-/g, '');
 
   db.prepare(`
-    UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1
+    UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1,
+    previous_card_id=?, replaced_at=unixepoch(), wiped_at=NULL
     WHERE user_id=?
-  `).run(keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, userId);
+  `).run(keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, existing.card_id ?? null, userId);
 
   res.json({ setup_token: setupToken });
 });
@@ -252,7 +270,7 @@ router.post('/users/:id/card/wipe', (req, res) => {
     k3: card.k3,
     k4: card.k4,
   });
-  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipePayload, userId);
+  db.prepare('UPDATE cards SET wipe_token = ?, wiped_at = unixepoch() WHERE user_id = ?').run(wipePayload, userId);
   res.json({ ok: true });
 });
 

@@ -17,3 +17,12 @@ if (!cardColumns.includes('wipe_token')) {
   db.exec('ALTER TABLE cards ADD COLUMN wipe_token TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_wipe_token ON cards(wipe_token)');
 }
+if (!cardColumns.includes('wiped_at')) {
+  db.exec('ALTER TABLE cards ADD COLUMN wiped_at INTEGER');
+}
+if (!cardColumns.includes('previous_card_id')) {
+  db.exec('ALTER TABLE cards ADD COLUMN previous_card_id TEXT');
+}
+if (!cardColumns.includes('replaced_at')) {
+  db.exec('ALTER TABLE cards ADD COLUMN replaced_at INTEGER');
+}

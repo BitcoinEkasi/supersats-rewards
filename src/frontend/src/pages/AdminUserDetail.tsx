@@ -22,6 +22,9 @@ interface UserDetail {
     setup_token: string | null;
     wipe_token: string | null;
     programmed_at: number | null;
+    wiped_at: number | null;
+    previous_card_id: string | null;
+    replaced_at: number | null;
     enabled: number;
   } | null;
   transactions: {
@@ -31,6 +34,10 @@ interface UserDetail {
     description: string | null;
     created_at: number;
   }[];
+}
+
+function formatTs(unix: number) {
+  return new Date(unix * 1000).toLocaleString();
 }
 
 export default function AdminUserDetail() {
@@ -93,23 +100,22 @@ export default function AdminUserDetail() {
     load();
   }
 
-  async function deleteCard() {
-    const choice = window.confirm(
-      'Is this card lost or damaged?\n\nOK = Lost / Damaged (delete card)\nCancel = I want to wipe the card for re-use'
-    );
-    if (choice) {
-      // Lost / Damaged — delete
-      if (!window.confirm('Delete this card? This cannot be undone.')) return;
-      const res = await fetch(`/api/admin/users/${id}/card`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-      if (!res.ok) { const d = await res.json(); alert(d.error); return; }
-      load();
-    } else {
-      // Wipe for re-use
-      await wipeCard();
+  async function deleteUser() {
+    if (!user) return;
+    if (user.balance_sats > 0) {
+      alert('Withdraw all funds before deleting this user.');
+      return;
     }
+    const input = window.prompt(
+      `This will permanently delete ${user.display_name} and all their data.\n\nType DELETE to confirm:`
+    );
+    if (input !== 'DELETE') return;
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    navigate('/admin');
   }
 
   async function credit(e: React.FormEvent) {
@@ -251,8 +257,65 @@ export default function AdminUserDetail() {
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               {/* QR / programming */}
               <div>
-                {user.card.setup_token ? (
-                  <>
+                {/* Card lifecycle status */}
+                {(() => {
+                  const c = user.card!;
+                  if (c.setup_token && c.replaced_at && c.previous_card_id) {
+                    return (
+                      <div style={{ padding: '12px 0' }}>
+                        <span className="badge badge-red" style={{ marginBottom: 8 }}>Card Replaced — Awaiting Programming</span>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Card <code>{c.previous_card_id}</code> deleted on {formatTs(c.replaced_at)}</p>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>Scan QR below to program replacement card.</p>
+                      </div>
+                    );
+                  }
+                  if (c.setup_token) {
+                    return (
+                      <div style={{ padding: '12px 0' }}>
+                        <span className="badge" style={{ marginBottom: 8, background: '#555', color: '#ccc' }}>Awaiting Programming</span>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Scan QR below to program this card.</p>
+                      </div>
+                    );
+                  }
+                  if (c.wiped_at) {
+                    return (
+                      <div style={{ padding: '12px 0' }}>
+                        <span className="badge" style={{ marginBottom: 8, background: '#b45309', color: '#fff' }}>Wiped</span>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                          Card <code>{c.card_id ?? c.uid ?? 'unknown'}</code> wiped on {formatTs(c.wiped_at)} — ready to reprogram.
+                        </p>
+                        {c.uid && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>UID: <code>{c.uid}</code></p>}
+                      </div>
+                    );
+                  }
+                  if (c.replaced_at && c.previous_card_id && c.programmed_at) {
+                    return (
+                      <div style={{ padding: '12px 0' }}>
+                        <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                          Card <code>{c.previous_card_id}</code> replaced with card <code>{c.card_id ?? c.uid}</code> on {formatTs(c.programmed_at)}.
+                        </p>
+                        {c.uid && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>UID: <code>{c.uid}</code></p>}
+                      </div>
+                    );
+                  }
+                  if (c.programmed_at) {
+                    return (
+                      <div style={{ padding: '12px 0' }}>
+                        <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
+                        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                          Card <code>{c.card_id ?? c.uid}</code> successfully programmed on {formatTs(c.programmed_at)}.
+                        </p>
+                        {c.uid && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>UID: <code>{c.uid}</code></p>}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Setup QR (only shown when awaiting programming) */}
+                {user.card.setup_token && (
+                  <div style={{ marginTop: 8 }}>
                     <p className="muted" style={{ marginBottom: 8, fontSize: 13 }}>Scan with Boltcard Programmer app to program card:</p>
                     {qrUrl && (
                       <img
@@ -261,7 +324,7 @@ export default function AdminUserDetail() {
                         style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
                       />
                     )}
-                    <p className="muted" style={{ marginTop: 6, marginBottom: 8, fontSize: 12 }}>QR is single-use. On mobile, tap below instead:</p>
+                    <p className="muted" style={{ marginTop: 6, marginBottom: 8, fontSize: 12 }}>On mobile, tap below instead:</p>
                     <a
                       href={`boltcard://program?url=${encodeURIComponent(`${window.location.origin}/api/card/setup/${user.card.setup_token}`)}`}
                       className="btn-ghost"
@@ -269,18 +332,6 @@ export default function AdminUserDetail() {
                     >
                       Open in Programmer App
                     </a>
-                  </>
-                ) : (
-                  <div style={{ padding: '16px 0' }}>
-                    <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
-                    {user.card.uid && (
-                      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                        UID: <code>{user.card.uid}</code>
-                      </p>
-                    )}
-                    <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                      Programmed: {new Date(user.card.programmed_at! * 1000).toLocaleDateString()}
-                    </p>
                   </div>
                 )}
               </div>
@@ -326,7 +377,6 @@ export default function AdminUserDetail() {
                   )}
                   <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Replace Card</button>
                   <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
-                  <button className="btn-danger" onClick={deleteCard} style={{ fontSize: 12 }}>Delete Card</button>
                 </div>
               </div>
             </div>
@@ -394,6 +444,25 @@ export default function AdminUserDetail() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Danger zone */}
+      <div className="card" style={{ marginTop: 16, borderColor: '#5a1a1a' }}>
+        <h2 style={{ fontSize: 16, marginBottom: 8, color: '#f87171' }}>Danger Zone</h2>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+          Permanently deletes this user and all their data. Withdraw all funds first.
+        </p>
+        <button
+          className="btn-danger"
+          onClick={deleteUser}
+          disabled={user.balance_sats > 0}
+          title={user.balance_sats > 0 ? 'Withdraw all funds before deleting this user' : ''}
+        >
+          Delete User
+        </button>
+        {user.balance_sats > 0 && (
+          <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Withdraw all funds first to enable this button.</p>
         )}
       </div>
     </div>
