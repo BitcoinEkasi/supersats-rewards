@@ -340,6 +340,18 @@ export default function AdminUserDetail() {
                   alt="Wipe QR"
                   style={{ width: 200, height: 200, display: 'block', borderRadius: 8, marginBottom: 8 }}
                 />
+                <details style={{ marginTop: 8 }}>
+                  <summary className="muted" style={{ fontSize: 11, cursor: 'pointer' }}>Show raw QR content</summary>
+                  <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                    <pre style={{ fontSize: 10, background: '#111', padding: 8, borderRadius: 4, overflowX: 'auto', flex: 1, margin: 0 }}>
+                      {user.card!.wipe_token ? JSON.stringify(JSON.parse(user.card!.wipe_token), null, 2) : ''}
+                    </pre>
+                    <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px', flexShrink: 0 }}
+                      onClick={() => navigator.clipboard.writeText(user.card!.wipe_token ?? '')}>
+                      Copy
+                    </button>
+                  </div>
+                </details>
                 <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>After wiping, click Replace Card to generate a new setup QR.</p>
               </div>
             )}
