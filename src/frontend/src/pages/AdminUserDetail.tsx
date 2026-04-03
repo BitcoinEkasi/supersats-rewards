@@ -94,13 +94,22 @@ export default function AdminUserDetail() {
   }
 
   async function deleteCard() {
-    if (!confirm('Delete this card? This cannot be undone.')) return;
-    const res = await fetch(`/api/admin/users/${id}/card`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-    });
-    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
-    load();
+    const choice = window.confirm(
+      'Is this card lost or damaged?\n\nOK = Lost / Damaged (delete card)\nCancel = I want to wipe the card for re-use'
+    );
+    if (choice) {
+      // Lost / Damaged — delete
+      if (!window.confirm('Delete this card? This cannot be undone.')) return;
+      const res = await fetch(`/api/admin/users/${id}/card`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+      load();
+    } else {
+      // Wipe for re-use
+      await wipeCard();
+    }
   }
 
   async function credit(e: React.FormEvent) {
@@ -315,7 +324,7 @@ export default function AdminUserDetail() {
                   ) : (
                     <button className="btn-primary" onClick={() => toggleCard(true)}>Enable Card</button>
                   )}
-                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Reprogram</button>
+                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Replace Card</button>
                   <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
                   <button className="btn-danger" onClick={deleteCard} style={{ fontSize: 12 }}>Delete Card</button>
                 </div>
