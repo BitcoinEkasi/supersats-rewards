@@ -24,11 +24,24 @@ router.get('/:magic_token', (req, res) => {
     .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(user.id);
 
+  const card = db
+    .prepare('SELECT programmed_at, wiped_at, enabled, setup_token FROM cards WHERE user_id = ?')
+    .get(user.id) as any;
+
+  let card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | null = null;
+  if (card) {
+    if (card.setup_token || !card.programmed_at) card_status = 'awaiting';
+    else if (card.wiped_at) card_status = 'wiped';
+    else if (!card.enabled) card_status = 'disabled';
+    else card_status = 'active';
+  }
+
   res.json({
     username: user.username,
     display_name: user.display_name,
     balance_sats: user.balance_sats,
     ln_address: user.ln_address_enabled ? `${user.username}@${DOMAIN()}` : null,
+    card_status,
     transactions,
   });
 });

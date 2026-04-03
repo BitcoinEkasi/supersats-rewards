@@ -7,6 +7,7 @@ interface UserData {
   display_name: string;
   balance_sats: number;
   ln_address: string | null;
+  card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | null;
   transactions: {
     id: number;
     type: 'spend' | 'refill';
@@ -95,6 +96,32 @@ export default function UserView() {
           ≈ {(data.balance_sats / 100_000_000).toFixed(8)} BTC
         </p>
       </div>
+
+      {/* Card status */}
+      {data.card_status && (() => {
+        const statusMap = {
+          active:   { label: 'Card Active',    color: '#166534', bg: '#dcfce7' },
+          disabled: { label: 'Card Disabled',  color: '#991b1b', bg: '#fee2e2' },
+          awaiting: { label: 'Card Being Set Up', color: '#92400e', bg: '#fef3c7' },
+          wiped:    { label: 'Card Wiped',     color: '#92400e', bg: '#fef3c7' },
+        };
+        const s = statusMap[data.card_status];
+        const sub = data.card_status === 'disabled'
+          ? 'Contact your administrator.'
+          : data.card_status === 'wiped'
+          ? 'Contact your administrator to reprogram your card.'
+          : data.card_status === 'awaiting'
+          ? 'Your card is being configured — check back shortly.'
+          : null;
+        return (
+          <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ padding: '4px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600, background: s.bg, color: s.color }}>
+              {s.label}
+            </span>
+            {sub && <span className="muted" style={{ fontSize: 13 }}>{sub}</span>}
+          </div>
+        );
+      })()}
 
       {/* Refill QR */}
       {data.ln_address && (
