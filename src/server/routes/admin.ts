@@ -236,15 +236,15 @@ router.patch('/users/:id/card/card-id', (req, res) => {
   res.json({ card_id: card_id?.trim() || null });
 });
 
-// Generate a wipe token for the card (allows re-use with a different user/programming)
+// Generate a wipe deep link with current card keys embedded (boltcard://wipe?k0=...&k1=...&k2=...&k3=...&k4=...)
 router.post('/users/:id/card/wipe', (req, res) => {
   const userId = Number(req.params.id);
-  const card = db.prepare('SELECT id FROM cards WHERE user_id = ?').get(userId) as any;
+  const card = db.prepare('SELECT id, k0, k1, k2, k3, k4 FROM cards WHERE user_id = ?').get(userId) as any;
   if (!card) { res.status(404).json({ error: 'No card found' }); return; }
 
-  const wipeToken = uuidv4().replace(/-/g, '');
-  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipeToken, userId);
-  res.json({ wipe_token: wipeToken });
+  const wipeDeepLink = `boltcard://wipe?k0=${card.k0}&k1=${card.k1}&k2=${card.k2}&k3=${card.k3}&k4=${card.k4}`;
+  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipeDeepLink, userId);
+  res.json({ wipe_token: wipeDeepLink });
 });
 
 router.get('/users/:id/card/wipe/qr', async (req, res) => {
@@ -259,10 +259,7 @@ router.get('/users/:id/card/wipe/qr', async (req, res) => {
     return;
   }
 
-  const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
-  const wipeUrl = `${proto}://${DOMAIN()}/api/card/wipe/${card.wipe_token}`;
-
-  const qrPng = await QRCode.toBuffer(wipeUrl, { type: 'png', width: 400 });
+  const qrPng = await QRCode.toBuffer(card.wipe_token, { type: 'png', width: 400 });
   res.set('Content-Type', 'image/png');
   res.send(qrPng);
 });

@@ -342,7 +342,7 @@ export default function AdminUserDetail() {
                 />
                 <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>On mobile, tap below instead:</p>
                 <a
-                  href={`boltcard://wipe?url=${encodeURIComponent(`${window.location.origin}/api/card/wipe/${user.card!.wipe_token}`)}`}
+                  href={user.card!.wipe_token ?? '#'}
                   className="btn-ghost"
                   style={{ display: 'inline-block', fontSize: 12, padding: '6px 12px' }}
                 >
