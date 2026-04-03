@@ -244,8 +244,8 @@ router.post('/users/:id/card/wipe', (req, res) => {
 
   const wipePayload = JSON.stringify({
     protocol_name: 'create_bolt_card_wipe_response',
-    protocol_version: 2,
-    card_name: 'BoltCard',
+    version: 1,
+    action: 'wipe',
     k0: card.k0,
     k1: card.k1,
     k2: card.k2,
