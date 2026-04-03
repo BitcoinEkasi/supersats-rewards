@@ -90,12 +90,17 @@ router.get('/users/:id', (req, res) => {
     .prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(userId);
 
+  const cardEvents = db
+    .prepare('SELECT id, event, description, created_at FROM card_events WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId);
+
   const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
   res.json({
     ...user,
     magic_link_url: `${proto}://${DOMAIN()}/u/${user.magic_token}`,
     card: card ?? null,
     transactions,
+    cardEvents,
   });
 });
 
@@ -180,6 +185,7 @@ router.post('/users/:id/card', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(userId, keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, 999999999, 999999999);
 
+  db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'created');
   res.status(201).json({ id: result.lastInsertRowid, setup_token: setupToken });
 });
 
@@ -218,6 +224,7 @@ router.post('/users/:id/card/reprogram', (req, res) => {
     WHERE user_id=?
   `).run(keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, existing.card_id ?? null, userId);
 
+  db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(userId, 'replaced', existing.card_id ? `Previous card: ${existing.card_id}` : null);
   res.json({ setup_token: setupToken });
 });
 
@@ -272,6 +279,7 @@ router.post('/users/:id/card/wipe', (req, res) => {
     k4: card.k4,
   });
   db.prepare('UPDATE cards SET wipe_token = ?, wiped_at = unixepoch() WHERE user_id = ?').run(wipePayload, userId);
+  db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(userId, 'wiped', card.card_id ? `Card: ${card.card_id}` : null);
   res.json({ ok: true });
 });
 
@@ -296,6 +304,7 @@ router.post('/users/:id/card/enable', (req, res) => {
   const userId = Number(req.params.id);
   const updated = db.prepare('UPDATE cards SET enabled = 1 WHERE user_id = ?').run(userId);
   if (updated.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
+  db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'enabled');
   res.json({ enabled: true });
 });
 
@@ -303,6 +312,7 @@ router.post('/users/:id/card/disable', (req, res) => {
   const userId = Number(req.params.id);
   const updated = db.prepare('UPDATE cards SET enabled = 0 WHERE user_id = ?').run(userId);
   if (updated.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
+  db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'disabled');
   res.json({ enabled: false });
 });
 

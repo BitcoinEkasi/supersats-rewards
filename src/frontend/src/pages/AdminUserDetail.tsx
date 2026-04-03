@@ -34,6 +34,12 @@ interface UserDetail {
     description: string | null;
     created_at: number;
   }[];
+  cardEvents: {
+    id: number;
+    event: string;
+    description: string | null;
+    created_at: number;
+  }[];
 }
 
 function formatTs(unix: number) {
@@ -419,6 +425,42 @@ export default function AdminUserDetail() {
           </div>
         )}
       </div>
+
+      {/* Card activity history */}
+      {user.cardEvents.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, marginBottom: 12 }}>Card Activity</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Event</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {user.cardEvents.map((e) => {
+                const labelMap: Record<string, { label: string; color: string }> = {
+                  created:    { label: 'Card created',    color: '#888' },
+                  programmed: { label: 'Programmed',      color: '#16a34a' },
+                  wiped:      { label: 'Wiped',           color: '#b45309' },
+                  replaced:   { label: 'Replace initiated', color: '#b45309' },
+                  enabled:    { label: 'Enabled',         color: '#16a34a' },
+                  disabled:   { label: 'Disabled',        color: '#dc2626' },
+                };
+                const s = labelMap[e.event] ?? { label: e.event, color: '#888' };
+                return (
+                  <tr key={e.id}>
+                    <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatTs(e.created_at)}</td>
+                    <td><span style={{ fontWeight: 600, color: s.color }}>{s.label}</span></td>
+                    <td className="muted" style={{ fontSize: 12 }}>{e.description ?? '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Transaction history */}
       <div className="card">

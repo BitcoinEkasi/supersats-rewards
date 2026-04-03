@@ -41,6 +41,7 @@ router.get('/setup/:token', (req, res) => {
   // Mark as programmed and clear setup/wipe tokens on first fetch
   if (!card.programmed_at) {
     db.prepare('UPDATE cards SET programmed_at = unixepoch(), setup_token = NULL, wiped_at = NULL WHERE id = ?').run(card.id);
+    db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(card.user_id, 'programmed');
   }
 
   res.json({

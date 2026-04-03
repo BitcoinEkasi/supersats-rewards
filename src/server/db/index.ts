@@ -26,3 +26,14 @@ if (!cardColumns.includes('previous_card_id')) {
 if (!cardColumns.includes('replaced_at')) {
   db.exec('ALTER TABLE cards ADD COLUMN replaced_at INTEGER');
 }
+
+// Card event history table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS card_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    event TEXT NOT NULL,
+    description TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )
+`);
