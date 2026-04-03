@@ -236,15 +236,24 @@ router.patch('/users/:id/card/card-id', (req, res) => {
   res.json({ card_id: card_id?.trim() || null });
 });
 
-// Generate a wipe deep link with current card keys embedded (boltcard://wipe?k0=...&k1=...&k2=...&k3=...&k4=...)
+// Generate a wipe QR payload: JSON with current card keys so programmer app can wipe the card
 router.post('/users/:id/card/wipe', (req, res) => {
   const userId = Number(req.params.id);
   const card = db.prepare('SELECT id, k0, k1, k2, k3, k4 FROM cards WHERE user_id = ?').get(userId) as any;
   if (!card) { res.status(404).json({ error: 'No card found' }); return; }
 
-  const wipeDeepLink = `boltcard://wipe?k0=${card.k0}&k1=${card.k1}&k2=${card.k2}&k3=${card.k3}&k4=${card.k4}`;
-  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipeDeepLink, userId);
-  res.json({ wipe_token: wipeDeepLink });
+  const wipePayload = JSON.stringify({
+    protocol_name: 'create_bolt_card_wipe_response',
+    protocol_version: 2,
+    card_name: 'BoltCard',
+    k0: card.k0,
+    k1: card.k1,
+    k2: card.k2,
+    k3: card.k3,
+    k4: card.k4,
+  });
+  db.prepare('UPDATE cards SET wipe_token = ? WHERE user_id = ?').run(wipePayload, userId);
+  res.json({ ok: true });
 });
 
 router.get('/users/:id/card/wipe/qr', async (req, res) => {

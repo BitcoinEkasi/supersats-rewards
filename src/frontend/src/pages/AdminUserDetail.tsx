@@ -340,15 +340,7 @@ export default function AdminUserDetail() {
                   alt="Wipe QR"
                   style={{ width: 200, height: 200, display: 'block', borderRadius: 8, marginBottom: 8 }}
                 />
-                <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>On mobile, tap below instead:</p>
-                <a
-                  href={user.card!.wipe_token ?? '#'}
-                  className="btn-ghost"
-                  style={{ display: 'inline-block', fontSize: 12, padding: '6px 12px' }}
-                >
-                  Open in Programmer App (Wipe)
-                </a>
-                <p className="muted" style={{ marginTop: 8, fontSize: 11 }}>After wiping, a new setup QR will be generated automatically.</p>
+                <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>After wiping, click Replace Card to generate a new setup QR.</p>
               </div>
             )}
           </div>
