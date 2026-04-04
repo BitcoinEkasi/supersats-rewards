@@ -258,7 +258,6 @@ export default function AdminUserDetail() {
             const c = user.card!;
             if (c.setup_token || !c.programmed_at) return <span className="badge badge-yellow">Awaiting programming</span>;
             if (c.wiped_at) return <span className="badge" style={{ background: '#b45309', color: '#fff' }}>Wiped</span>;
-            if (!c.enabled) return <span className="badge badge-red">Disabled</span>;
             return <span className="badge badge-green">Active</span>;
           })()}
         </div>
@@ -355,7 +354,6 @@ export default function AdminUserDetail() {
               <div style={{ flex: 1 }}>
                 <table style={{ marginBottom: 12 }}>
                   <tbody>
-                    <tr><td className="muted" style={{ paddingLeft: 0 }}>Status</td><td>{user.card.enabled ? <span className="badge badge-green">Enabled</span> : <span className="badge badge-red">Disabled</span>}</td></tr>
                     <tr>
                       <td className="muted" style={{ paddingLeft: 0 }}>Card No.</td>
                       <td>
@@ -385,13 +383,8 @@ export default function AdminUserDetail() {
                 </table>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {user.card.enabled ? (
-                    <button className="btn-danger" onClick={() => toggleCard(false)}>Disable Card</button>
-                  ) : (
-                    <button className="btn-primary" onClick={() => toggleCard(true)}>Enable Card</button>
-                  )}
-                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Replace Card</button>
                   <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
+                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Replace Card</button>
                 </div>
               </div>
             </div>
