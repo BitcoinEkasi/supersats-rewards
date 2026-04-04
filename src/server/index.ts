@@ -49,20 +49,44 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
     | { id: number; user_id: number; amount_sats: number }
     | undefined;
 
-  if (!pending) return; // not for us or expired
+  if (pending) {
+    db.transaction(() => {
+      db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(
+        amountSats,
+        pending.user_id
+      );
+      db.prepare(
+        'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description) VALUES (?, ?, ?, ?, ?)'
+      ).run(pending.user_id, 'refill', amountSats, paymentHash, 'LN Address payment');
+      db.prepare('DELETE FROM pending_refills WHERE payment_hash = ?').run(paymentHash);
+    })();
+    console.log(`[payment] Credited ${amountSats} sats to user #${pending.user_id}`);
+    return;
+  }
 
-  db.transaction(() => {
-    db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(
-      amountSats,
-      pending.user_id
-    );
-    db.prepare(
-      'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description) VALUES (?, ?, ?, ?, ?)'
-    ).run(pending.user_id, 'refill', amountSats, paymentHash, 'LN Address payment');
-    db.prepare('DELETE FROM pending_refills WHERE payment_hash = ?').run(paymentHash);
-  })();
+  // Check payout batches (month-end reward distribution)
+  const batch = db
+    .prepare("SELECT * FROM payout_batches WHERE payment_hash = ? AND status = 'pending'")
+    .get(paymentHash) as any;
 
-  console.log(`[payment] Credited ${amountSats} sats to user #${pending.user_id}`);
+  if (batch) {
+    const items = db
+      .prepare('SELECT * FROM payout_batch_items WHERE batch_id = ?')
+      .all(batch.id) as any[];
+    db.transaction(() => {
+      for (const item of items) {
+        db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?')
+          .run(item.amount_sats, item.user_id);
+        db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)')
+          .run(item.user_id, 'refill', item.amount_sats, item.description ?? 'Monthly reward payout');
+        db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)')
+          .run(item.user_id, 'credited', `${item.amount_sats} sats — ${batch.memo ?? 'Monthly payout'}`);
+      }
+      db.prepare("UPDATE payout_batches SET status = 'paid', paid_at = unixepoch() WHERE id = ?")
+        .run(batch.id);
+    })();
+    console.log(`[payment] Payout batch #${batch.id} paid — credited ${items.length} users`);
+  }
 }
 
 // ── Express app ───────────────────────────────────────────────────────────────

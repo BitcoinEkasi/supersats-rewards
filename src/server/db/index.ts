@@ -37,3 +37,26 @@ db.exec(`
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   )
 `);
+
+// Payout batch tables (month-end reward distribution)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payout_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_hash TEXT UNIQUE NOT NULL,
+    payment_request TEXT NOT NULL,
+    total_sats INTEGER NOT NULL,
+    memo TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    paid_at INTEGER
+  )
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payout_batch_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    amount_sats INTEGER NOT NULL,
+    description TEXT
+  )
+`);
