@@ -42,8 +42,10 @@ interface UserDetail {
   }[];
 }
 
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function formatTs(unix: number) {
-  return new Date(unix * 1000).toLocaleString();
+  const d = new Date(unix * 1000);
+  return `${String(d.getDate()).padStart(2,"0")} ${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
 }
 
 export default function AdminUserDetail() {
@@ -483,7 +485,7 @@ export default function AdminUserDetail() {
                     {zarPerSat && <span className="muted" style={{ marginLeft: 6 }}>({formatZAR(tx.amount_sats, zarPerSat)})</span>}
                   </td>
                   <td className="muted">{tx.description ?? '—'}</td>
-                  <td className="muted">{new Date(tx.created_at * 1000).toLocaleString()}</td>
+                  <td className="muted">{formatTs(tx.created_at)}</td>
                 </tr>
               ))}
             </tbody>

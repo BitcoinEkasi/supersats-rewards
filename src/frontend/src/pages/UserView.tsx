@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react';
+
+const _MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(unix: number) {
+  const d = new Date(unix * 1000);
+  return `${String(d.getDate()).padStart(2,"0")} ${_MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
+}
 import { useParams } from 'react-router-dom';
 import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';
 
@@ -180,7 +186,7 @@ export default function UserView() {
                     {zarPerSat && <span className="muted" style={{ display: 'block', fontSize: 12, fontWeight: 400 }}>{formatZAR(tx.amount_sats, zarPerSat)}</span>}
                   </td>
                   <td className="muted">{tx.description ?? '—'}</td>
-                  <td className="muted" style={{ fontSize: 12 }}>{new Date(tx.created_at * 1000).toLocaleDateString()}</td>
+                  <td className="muted" style={{ fontSize: 12 }}>{fmtDate(tx.created_at)}</td>
                 </tr>
               ))}
             </tbody>
