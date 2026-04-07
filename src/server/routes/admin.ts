@@ -5,7 +5,8 @@ import QRCode from 'qrcode';
 import { db } from '../db/index.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { generateKeys } from '../services/crypto.js';
-import { getBalance } from '../services/blink.js';
+import { getBalance, payInvoice } from '../services/blink.js';
+import { resolveLnAddress } from '../services/lnurl.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -314,6 +315,43 @@ router.post('/users/:id/card/disable', (req, res) => {
   if (updated.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
   db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'disabled');
   res.json({ enabled: false });
+});
+
+// ── POST /api/admin/users/:id/ln-payout ──────────────────────────────────────
+// Manual ad-hoc Lightning address payment (called from admin dashboard UI)
+
+router.post('/users/:id/ln-payout', async (req, res) => {
+  const userId = Number(req.params.id);
+  const { ln_address, amount_sats, description } = req.body as {
+    ln_address?: string;
+    amount_sats?: number;
+    description?: string;
+  };
+  if (!ln_address || !amount_sats || amount_sats <= 0) {
+    res.status(400).json({ error: 'ln_address and amount_sats (positive) required' });
+    return;
+  }
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  let paymentHash: string | null = null;
+  let status = 'failed';
+  try {
+    const pr = await resolveLnAddress(ln_address, amount_sats);
+    const payStatus = await payInvoice(pr);
+    if (payStatus === 'SUCCESS' || payStatus === 'ALREADY_PAID') {
+      status = 'paid';
+    }
+    console.log(`[ln-payout] manual send to ${ln_address}: ${payStatus}`);
+  } catch (err: any) {
+    console.error(`[ln-payout] manual send to ${ln_address} failed:`, err.message);
+  }
+
+  db.prepare(
+    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null);
+
+  res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
 });
 
 // ── API Keys ──────────────────────────────────────────────────────────────────

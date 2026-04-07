@@ -151,7 +151,7 @@ export default function AdminUserDetail() {
     e.preventDefault();
     setLnResult(null);
     setLnLoading(true);
-    const res = await fetch(`/api/v1/users/${id}/ln-payout`, {
+    const res = await fetch(`/api/admin/users/${id}/ln-payout`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ ln_address: lnAddress, amount_sats: parseInt(lnAmount), description: lnDesc || undefined }),
