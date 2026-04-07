@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 
 import { db } from './db/index.js';
-import { startBlinkSubscription } from './services/blink.js';
+import { startBlinkSubscription, payInvoice } from './services/blink.js';
+import { resolveLnAddress } from './services/lnurl.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -73,8 +74,11 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
     const items = db
       .prepare('SELECT * FROM payout_batch_items WHERE batch_id = ?')
       .all(batch.id) as any[];
+
+    // Credit internal (bolt card) items synchronously
     db.transaction(() => {
       for (const item of items) {
+        if (item.payout_type === 'ln_address') continue; // handled async below
         db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?')
           .run(item.amount_sats, item.user_id);
         db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)')
@@ -85,7 +89,31 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
       db.prepare("UPDATE payout_batches SET status = 'paid', paid_at = unixepoch() WHERE id = ?")
         .run(batch.id);
     })();
-    console.log(`[payment] Payout batch #${batch.id} paid — credited ${items.length} users`);
+
+    // Fire outbound LN payments for ln_address items (non-blocking)
+    const lnItems = items.filter(i => i.payout_type === 'ln_address' && i.ln_address);
+    for (const item of lnItems) {
+      (async () => {
+        let paymentHash: string | null = null;
+        let status = 'failed';
+        try {
+          const pr = await resolveLnAddress(item.ln_address, item.amount_sats);
+          const payStatus = await payInvoice(pr);
+          if (payStatus === 'SUCCESS' || payStatus === 'ALREADY_PAID') {
+            status = 'paid';
+          }
+          console.log(`[payment] LN address payout to ${item.ln_address}: ${payStatus}`);
+        } catch (err: any) {
+          console.error(`[payment] LN address payout to ${item.ln_address} failed:`, err.message);
+        }
+        db.prepare(
+          'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(item.user_id, item.amount_sats, item.ln_address, paymentHash, status, item.description ?? 'Monthly reward payout');
+      })();
+    }
+
+    const internalCount = items.length - lnItems.length;
+    console.log(`[payment] Payout batch #${batch.id} paid — credited ${internalCount} internal, queued ${lnItems.length} LN address`);
   }
 }
 

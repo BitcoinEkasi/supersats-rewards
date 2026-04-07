@@ -60,3 +60,26 @@ db.exec(`
     description TEXT
   )
 `);
+
+// Migrations for payout_batch_items
+const batchItemCols = (db.prepare(`PRAGMA table_info(payout_batch_items)`).all() as { name: string }[]).map(c => c.name);
+if (!batchItemCols.includes('payout_type')) {
+  db.exec("ALTER TABLE payout_batch_items ADD COLUMN payout_type TEXT NOT NULL DEFAULT 'internal'");
+}
+if (!batchItemCols.includes('ln_address')) {
+  db.exec('ALTER TABLE payout_batch_items ADD COLUMN ln_address TEXT');
+}
+
+// LN address payout log
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ln_payouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount_sats INTEGER NOT NULL,
+    ln_address TEXT NOT NULL,
+    payment_hash TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    description TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )
+`);

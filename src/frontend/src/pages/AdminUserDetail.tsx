@@ -29,9 +29,10 @@ interface UserDetail {
   } | null;
   transactions: {
     id: number;
-    type: 'spend' | 'refill';
+    type: 'spend' | 'refill' | 'ln_payout';
     amount_sats: number;
     description: string | null;
+    status?: string;
     created_at: number;
   }[];
   cardEvents: {
@@ -57,6 +58,11 @@ export default function AdminUserDetail() {
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc] = useState('');
   const [creditError, setCreditError] = useState('');
+  const [lnAddress, setLnAddress] = useState('');
+  const [lnAmount, setLnAmount] = useState('');
+  const [lnDesc, setLnDesc] = useState('');
+  const [lnResult, setLnResult] = useState<{ status: string; message: string } | null>(null);
+  const [lnLoading, setLnLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
@@ -139,6 +145,27 @@ export default function AdminUserDetail() {
     setCreditAmount('');
     setCreditDesc('');
     load();
+  }
+
+  async function sendToLnAddress(e: React.FormEvent) {
+    e.preventDefault();
+    setLnResult(null);
+    setLnLoading(true);
+    const res = await fetch(`/api/v1/users/${id}/ln-payout`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ln_address: lnAddress, amount_sats: parseInt(lnAmount), description: lnDesc || undefined }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setLnResult({ status: 'paid', message: `Sent ${parseInt(lnAmount).toLocaleString()} sats to ${lnAddress}` });
+      setLnAmount('');
+      setLnDesc('');
+      load();
+    } else {
+      setLnResult({ status: 'failed', message: data.error ?? `Payment failed (${data.status ?? 'unknown'})` });
+    }
+    setLnLoading(false);
   }
 
   async function toggleCard(enable: boolean) {
@@ -250,6 +277,51 @@ export default function AdminUserDetail() {
             </a>
           </div>
         </div>
+      </div>
+
+      {/* Send to Lightning Address */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Send to Lightning Address</h2>
+        <form onSubmit={sendToLnAddress} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '2 1 200px' }}>
+            <label className="muted" style={{ fontSize: 12 }}>Lightning Address</label>
+            <input
+              type="text"
+              placeholder="user@wallet.com"
+              value={lnAddress}
+              onChange={e => setLnAddress(e.target.value)}
+              required
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '0 0 110px' }}>
+            <label className="muted" style={{ fontSize: 12 }}>Amount (sats)</label>
+            <input
+              type="number"
+              placeholder="sats"
+              value={lnAmount}
+              onChange={e => setLnAmount(e.target.value)}
+              min="1"
+              required
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 120px' }}>
+            <label className="muted" style={{ fontSize: 12 }}>Note (optional)</label>
+            <input
+              type="text"
+              placeholder="Description"
+              value={lnDesc}
+              onChange={e => setLnDesc(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn-primary" disabled={lnLoading}>
+            {lnLoading ? 'Sending…' : 'Send'}
+          </button>
+        </form>
+        {lnResult && (
+          <p style={{ marginTop: 8, fontSize: 13, color: lnResult.status === 'paid' ? '#16a34a' : '#dc2626' }}>
+            {lnResult.message}
+          </p>
+        )}
       </div>
 
       {/* Card section */}
@@ -474,11 +546,17 @@ export default function AdminUserDetail() {
             </thead>
             <tbody>
               {user.transactions.map((tx) => (
-                <tr key={tx.id}>
+                <tr key={`${tx.type}-${tx.id}`}>
                   <td>
-                    <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
-                      {tx.type === 'refill' ? '↓ refill' : '↑ spend'}
-                    </span>
+                    {tx.type === 'ln_payout' ? (
+                      <span className={`badge ${tx.status === 'paid' ? 'badge-green' : tx.status === 'failed' ? 'badge-red' : ''}`} style={!tx.status || (tx.status !== 'paid' && tx.status !== 'failed') ? { background: '#555', color: '#ccc' } : undefined}>
+                        → LN send {tx.status ?? ''}
+                      </span>
+                    ) : (
+                      <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
+                        {tx.type === 'refill' ? '↓ refill' : '↑ spend'}
+                      </span>
+                    )}
                   </td>
                   <td>
                     {tx.amount_sats.toLocaleString()} sats

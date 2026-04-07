@@ -4,7 +4,8 @@ import QRCode from 'qrcode';
 import { db } from '../db/index.js';
 import { requireApiKey } from '../middleware/apiKeyAuth.js';
 import { generateKeys } from '../services/crypto.js';
-import { createInvoice } from '../services/blink.js';
+import { createInvoice, payInvoice } from '../services/blink.js';
+import { resolveLnAddress } from '../services/lnurl.js';
 
 const router = Router();
 router.use(requireApiKey);
@@ -61,9 +62,26 @@ router.get('/users/:id', (req, res) => {
     .prepare('SELECT id, card_id, programmed_at, enabled, uid, tx_max_sats, day_max_sats FROM cards WHERE user_id = ?')
     .get(userId) as any;
 
-  const transactions = db
+  const txRows = db
     .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
-    .all(userId);
+    .all(userId) as any[];
+
+  const lnPayoutRows = db
+    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
+    .all(userId) as any[];
+
+  const lnPayoutsMapped = lnPayoutRows.map(r => ({
+    id: r.id,
+    type: 'ln_payout' as const,
+    amount_sats: r.amount_sats,
+    description: r.description ?? r.ln_address,
+    status: r.status,
+    created_at: r.created_at,
+  }));
+
+  const transactions = [...txRows, ...lnPayoutsMapped]
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 20);
 
   const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
 
@@ -152,7 +170,7 @@ router.post('/users/:id/credit', (req, res) => {
 router.post('/payout/batch', async (req, res) => {
   const { memo, payouts } = req.body as {
     memo?: string;
-    payouts?: { user_id: number; amount_sats: number; description?: string }[];
+    payouts?: { user_id: number; amount_sats: number; description?: string; payout_type?: string; ln_address?: string }[];
   };
   if (!payouts || !Array.isArray(payouts) || payouts.length === 0) {
     res.status(400).json({ error: 'payouts array required' });
@@ -165,6 +183,9 @@ router.post('/payout/batch', async (req, res) => {
     if (!u) { res.status(400).json({ error: `User ${p.user_id} not found` }); return; }
     if (!p.amount_sats || p.amount_sats <= 0) {
       res.status(400).json({ error: `Invalid amount_sats for user ${p.user_id}` }); return;
+    }
+    if (p.payout_type === 'ln_address' && !p.ln_address) {
+      res.status(400).json({ error: `ln_address required for user ${p.user_id} with payout_type ln_address` }); return;
     }
   }
 
@@ -190,10 +211,10 @@ router.post('/payout/batch', async (req, res) => {
 
   const batchId = batchResult.lastInsertRowid as number;
   const insertItem = db.prepare(
-    'INSERT INTO payout_batch_items (batch_id, user_id, amount_sats, description) VALUES (?, ?, ?, ?)'
+    'INSERT INTO payout_batch_items (batch_id, user_id, amount_sats, description, payout_type, ln_address) VALUES (?, ?, ?, ?, ?, ?)'
   );
   for (const p of payouts) {
-    insertItem.run(batchId, p.user_id, p.amount_sats, p.description ?? null);
+    insertItem.run(batchId, p.user_id, p.amount_sats, p.description ?? null, p.payout_type ?? 'internal', p.ln_address ?? null);
   }
 
   res.status(201).json({
@@ -203,6 +224,45 @@ router.post('/payout/batch', async (req, res) => {
     total_sats: totalSats,
     qr_base64: qrBase64,
   });
+});
+
+// ── POST /api/v1/users/:id/ln-payout ─────────────────────────────────────────
+// Ad-hoc manual send to a Lightning address. Used by admin for manual retries.
+
+router.post('/users/:id/ln-payout', async (req, res) => {
+  const userId = Number(req.params.id);
+  const { ln_address, amount_sats, description } = req.body as {
+    ln_address?: string;
+    amount_sats?: number;
+    description?: string;
+  };
+  if (!ln_address || !amount_sats || amount_sats <= 0) {
+    res.status(400).json({ error: 'ln_address and amount_sats (positive) required' });
+    return;
+  }
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  let paymentHash: string | null = null;
+  let status = 'failed';
+  try {
+    const pr = await resolveLnAddress(ln_address, amount_sats);
+    const payStatus = await payInvoice(pr);
+    if (payStatus === 'SUCCESS' || payStatus === 'ALREADY_PAID') {
+      status = 'paid';
+      // Extract payment hash from BOLT11 (first 32 bytes after hrp+version — use a simple regex)
+      const hashMatch = pr.match(/^ln\w+1[02-9ac-hj-np-z]{6,}([02-9ac-hj-np-z]{64})/i);
+      paymentHash = hashMatch?.[1] ?? null;
+    }
+  } catch (err: any) {
+    console.error(`[ln-payout] manual send to ${ln_address} failed:`, err.message);
+  }
+
+  db.prepare(
+    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null);
+
+  res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
 });
 
 // ── GET /api/v1/payout/batch/:id ──────────────────────────────────────────────
