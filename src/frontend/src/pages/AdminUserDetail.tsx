@@ -64,6 +64,13 @@ export default function AdminUserDetail() {
   const [lnDesc, setLnDesc] = useState('');
   const [lnResult, setLnResult] = useState<{ status: string; message: string } | null>(null);
   const [lnLoading, setLnLoading] = useState(false);
+
+  // Pre-fill LN address from user record when data loads
+  useEffect(() => {
+    if (user?.ln_payout_address && !lnAddress) {
+      setLnAddress(user.ln_payout_address);
+    }
+  }, [user?.ln_payout_address]);
   const [copied, setCopied] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
