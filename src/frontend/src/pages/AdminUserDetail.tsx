@@ -13,6 +13,7 @@ interface UserDetail {
   balance_sats: number;
   magic_link_url: string;
   ln_address_enabled: number;
+  ln_payout_address: string | null;
   card: {
     id: number;
     card_id: string | null;
@@ -257,6 +258,12 @@ export default function AdminUserDetail() {
             <button type="submit" className="btn-primary">Credit</button>
           </form>
           {creditError && <p className="error-text" style={{ marginTop: 6 }}>{creditError}</p>}
+          {user.ln_payout_address && (
+            <div style={{ marginTop: 10, padding: '8px 10px', background: '#1a1a2e', borderRadius: 6, border: '1px solid #2a2a4a' }}>
+              <p className="muted" style={{ fontSize: 11, marginBottom: 2 }}>Payout Lightning Address</p>
+              <code style={{ fontSize: 12, color: '#f7931a' }}>{user.ln_payout_address}</code>
+            </div>
+          )}
           {user.balance_sats > 0 && (
             <button className="btn-danger" onClick={withdrawAll} style={{ marginTop: 10, fontSize: 12 }}>
               Withdraw All

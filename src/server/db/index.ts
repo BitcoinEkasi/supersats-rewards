@@ -9,6 +9,11 @@ db.pragma('foreign_keys = ON');
 db.exec(SQL_SCHEMA);
 
 // Migrations for existing databases
+const userColumns = (db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]).map(c => c.name);
+if (!userColumns.includes('ln_payout_address')) {
+  db.exec('ALTER TABLE users ADD COLUMN ln_payout_address TEXT');
+}
+
 const cardColumns = (db.prepare(`PRAGMA table_info(cards)`).all() as { name: string }[]).map(c => c.name);
 if (!cardColumns.includes('card_id')) {
   db.exec('ALTER TABLE cards ADD COLUMN card_id TEXT');

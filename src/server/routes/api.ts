@@ -54,7 +54,7 @@ router.post('/users', (req, res) => {
 router.get('/users/:id', (req, res) => {
   const userId = Number(req.params.id);
   const user = db
-    .prepare('SELECT id, username, display_name, balance_sats, ln_address_enabled, magic_token, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, balance_sats, ln_address_enabled, ln_payout_address, magic_token, created_at FROM users WHERE id = ?')
     .get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
@@ -102,6 +102,17 @@ router.get('/users/:id', (req, res) => {
       : null,
     transactions,
   });
+});
+
+// ── PATCH /api/v1/users/:id ───────────────────────────────────────────────────
+
+router.patch('/users/:id', (req, res) => {
+  const userId = Number(req.params.id);
+  const { ln_payout_address } = req.body as { ln_payout_address?: string | null };
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  db.prepare('UPDATE users SET ln_payout_address = ? WHERE id = ?').run(ln_payout_address ?? null, userId);
+  res.json({ success: true });
 });
 
 // ── POST /api/v1/users/:id/card ──────────────────────────────────────────────
