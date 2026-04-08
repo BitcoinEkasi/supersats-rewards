@@ -147,6 +147,8 @@ app.use('/api/user', userRoutes);
 if (isProd) {
   const distPath = path.join(__dirname, '../public');
   app.use(express.static(distPath));
+  // Return 404 for missing asset files (prevents stale-cache HTML-as-JS errors)
+  app.get('/assets/:file', (_req, res) => { res.status(404).end(); });
   // SPA fallback — serve index.html for all non-API routes
   app.get(/^(?!\/api|\/lnurlw|\/lnurlp|\/.well-known).*/, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
