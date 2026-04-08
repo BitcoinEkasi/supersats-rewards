@@ -118,6 +118,28 @@ export interface BlinkTx {
   settlementAmount: number;
   settlementFee: number;
   createdAt: number;
+  counterParty: string | null;
+}
+
+interface RawTxNode {
+  id: string;
+  status: string;
+  direction: 'SEND' | 'RECEIVE';
+  memo: string | null;
+  settlementAmount: number;
+  settlementFee: number;
+  createdAt: number;
+  settlementVia: {
+    __typename: string;
+    counterPartyUsername?: string;
+    transactionHash?: string;
+  };
+  initiationVia: {
+    __typename: string;
+    counterPartyUsername?: string;
+    address?: string;
+    paymentHash?: string;
+  };
 }
 
 interface TxData {
@@ -126,11 +148,31 @@ interface TxData {
       wallets: {
         id: string;
         transactions: {
-          edges: { node: BlinkTx }[];
+          edges: { node: RawTxNode }[];
         };
       }[];
     };
   };
+}
+
+function extractCounterParty(node: RawTxNode): string | null {
+  // Prefer intraledger username from settlementVia or initiationVia
+  if (node.settlementVia.__typename === 'SettlementViaIntraLedger' && node.settlementVia.counterPartyUsername) {
+    return node.settlementVia.counterPartyUsername;
+  }
+  if (node.initiationVia.__typename === 'InitiationViaIntraLedger' && node.initiationVia.counterPartyUsername) {
+    return node.initiationVia.counterPartyUsername;
+  }
+  if (node.settlementVia.__typename === 'SettlementViaOnChain' && node.settlementVia.transactionHash) {
+    return `on-chain: ${node.settlementVia.transactionHash.slice(0, 10)}…`;
+  }
+  if (node.initiationVia.__typename === 'InitiationViaOnChain' && node.initiationVia.address) {
+    return `on-chain: ${node.initiationVia.address.slice(0, 10)}…`;
+  }
+  if (node.initiationVia.__typename === 'InitiationViaLn') {
+    return 'Lightning';
+  }
+  return null;
 }
 
 export async function getTransactions(first = 50): Promise<BlinkTx[]> {
@@ -150,6 +192,17 @@ export async function getTransactions(first = 50): Promise<BlinkTx[]> {
                   settlementAmount
                   settlementFee
                   createdAt
+                  settlementVia {
+                    __typename
+                    ... on SettlementViaIntraLedger { counterPartyUsername }
+                    ... on SettlementViaOnChain { transactionHash }
+                  }
+                  initiationVia {
+                    __typename
+                    ... on InitiationViaIntraLedger { counterPartyUsername }
+                    ... on InitiationViaOnChain { address }
+                    ... on InitiationViaLn { paymentHash }
+                  }
                 }
               }
             }
@@ -161,7 +214,10 @@ export async function getTransactions(first = 50): Promise<BlinkTx[]> {
   const wallet = data.me.defaultAccount.wallets.find(
     (w) => w.id === WALLET_ID
   );
-  return wallet?.transactions.edges.map((e) => e.node) ?? [];
+  return (wallet?.transactions.edges.map((e) => ({
+    ...e.node,
+    counterParty: extractCounterParty(e.node),
+  })) ?? []);
 }
 
 // ── WebSocket subscription ────────────────────────────────────────────────────
