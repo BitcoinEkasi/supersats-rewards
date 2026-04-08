@@ -7,6 +7,7 @@ interface UserRow {
   username: string;
   display_name: string;
   balance_sats: number;
+  ln_payout_address: string | null;
   card_id: number | null;
   card_number: string | null;
   programmed_at: number | null;
@@ -119,7 +120,7 @@ export default function AdminDashboard() {
               <th>Username</th>
               <th>Display Name</th>
               <th>Balance</th>
-              <th>Card</th>
+              <th>Card / LN</th>
               <th></th>
             </tr>
           </thead>
@@ -133,8 +134,17 @@ export default function AdminDashboard() {
                   {zarPerSat && <span className="muted" style={{ marginLeft: 6 }}>({formatZAR(u.balance_sats, zarPerSat)})</span>}
                 </td>
                 <td>
-                  {cardStatus(u)}
-                  {u.card_number && <code style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{u.card_number}</code>}
+                  {u.ln_payout_address ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span className="badge" style={{ background: '#1a3a2a', color: '#4ade80' }}>⚡ LN</span>
+                      <code style={{ fontSize: 11, color: '#888' }}>{u.ln_payout_address}</code>
+                    </span>
+                  ) : (
+                    <>
+                      {cardStatus(u)}
+                      {u.card_number && <code style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>{u.card_number}</code>}
+                    </>
+                  )}
                 </td>
                 <td style={{ textAlign: 'right' }}>
                   <span style={{ color: '#f7931a', fontSize: 13 }}>View →</span>

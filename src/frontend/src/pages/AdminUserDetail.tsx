@@ -563,8 +563,13 @@ export default function AdminUserDetail() {
                 <tr key={`${tx.type}-${tx.id}`}>
                   <td>
                     {tx.type === 'ln_payout' ? (
-                      <span className={`badge ${tx.status === 'paid' ? 'badge-green' : tx.status === 'failed' ? 'badge-red' : ''}`} style={!tx.status || (tx.status !== 'paid' && tx.status !== 'failed') ? { background: '#555', color: '#ccc' } : undefined}>
-                        → LN send {tx.status ?? ''}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, color: tx.status === 'failed' ? '#dc2626' : '#16a34a' }} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        <span style={{ fontSize: 12, color: tx.status === 'failed' ? '#dc2626' : '#16a34a', fontWeight: 500 }}>
+                          LN {tx.status === 'failed' ? 'failed' : 'sent'}
+                        </span>
                       </span>
                     ) : (
                       <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
