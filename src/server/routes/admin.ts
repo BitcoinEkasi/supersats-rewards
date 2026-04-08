@@ -87,9 +87,15 @@ router.get('/users/:id', (req, res) => {
     .prepare('SELECT id, user_id, card_id, uid, counter, tx_max_sats, day_max_sats, day_spent_sats, setup_token, wipe_token, programmed_at, wiped_at, previous_card_id, replaced_at, enabled, created_at FROM cards WHERE user_id = ?')
     .get(userId) as any;
 
-  const transactions = db
-    .prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
-    .all(userId);
+  const txRows = db
+    .prepare('SELECT id, type, amount_sats, description, null AS status, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+    .all(userId) as any[];
+
+  const lnRows = db
+    .prepare("SELECT id, 'ln_payout' AS type, amount_sats, description, status, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")
+    .all(userId) as any[];
+
+  const transactions = [...txRows, ...lnRows].sort((a, b) => b.created_at - a.created_at).slice(0, 50);
 
   const cardEvents = db
     .prepare('SELECT id, event, description, created_at FROM card_events WHERE user_id = ? ORDER BY created_at DESC')
