@@ -108,6 +108,62 @@ export async function getBalance(): Promise<number> {
   return btcWallet?.balance ?? 0;
 }
 
+// ── getTransactions ───────────────────────────────────────────────────────────
+
+export interface BlinkTx {
+  id: string;
+  status: string;
+  direction: 'SEND' | 'RECEIVE';
+  memo: string | null;
+  settlementAmount: number;
+  settlementFee: number;
+  createdAt: number;
+}
+
+interface TxData {
+  me: {
+    defaultAccount: {
+      wallets: {
+        id: string;
+        transactions: {
+          edges: { node: BlinkTx }[];
+        };
+      }[];
+    };
+  };
+}
+
+export async function getTransactions(first = 50): Promise<BlinkTx[]> {
+  const data = await gql<TxData>(
+    `query GetTransactions {
+      me {
+        defaultAccount {
+          wallets {
+            id
+            transactions(first: ${first}) {
+              edges {
+                node {
+                  id
+                  status
+                  direction
+                  memo
+                  settlementAmount
+                  settlementFee
+                  createdAt
+                }
+              }
+            }
+          }
+        }
+      }
+    }`
+  );
+  const wallet = data.me.defaultAccount.wallets.find(
+    (w) => w.id === WALLET_ID
+  );
+  return wallet?.transactions.edges.map((e) => e.node) ?? [];
+}
+
 // ── WebSocket subscription ────────────────────────────────────────────────────
 
 export function startBlinkSubscription(

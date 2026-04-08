@@ -16,8 +16,24 @@ interface UserRow {
   setup_token: string | null;
 }
 
+interface BlinkTx {
+  id: string;
+  status: string;
+  direction: 'SEND' | 'RECEIVE';
+  memo: string | null;
+  settlementAmount: number;
+  settlementFee: number;
+  createdAt: number;
+}
+
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('admin_token')}` };
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatTs(unix: number) {
+  const d = new Date(unix * 1000);
+  return `${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
 }
 
 export default function AdminDashboard() {
@@ -25,10 +41,13 @@ export default function AdminDashboard() {
   const { zarPerSat } = usePriceFeed();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [systemBalance, setSystemBalance] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [createError, setCreateError] = useState('');
+  const [blinkTxs, setBlinkTxs] = useState<BlinkTx[] | null>(null);
+  const [blinkError, setBlinkError] = useState('');
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -37,7 +56,18 @@ export default function AdminDashboard() {
     setSystemBalance(data.systemBalance ?? null);
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadBlinkTxs() {
+    try {
+      const res = await fetch('/api/admin/blink-transactions', { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) { setBlinkError(data.error ?? 'Failed to load'); return; }
+      setBlinkTxs(data);
+    } catch {
+      setBlinkError('Network error');
+    }
+  }
+
+  useEffect(() => { load(); loadBlinkTxs(); }, []);
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +98,11 @@ export default function AdminDashboard() {
     return <span className="badge badge-green">Active</span>;
   }
 
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return !q || u.username.includes(q) || u.display_name.toLowerCase().includes(q);
+  });
+
   return (
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -83,10 +118,18 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* ── Users ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ fontSize: 16 }}>Users ({users.length})</h2>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
       </div>
+
+      <input
+        placeholder="Search by username or name…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ marginBottom: 12, width: '100%' }}
+      />
 
       {showCreate && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -113,7 +156,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: 24 }}>
         <table>
           <thead>
             <tr>
@@ -125,7 +168,7 @@ export default function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filtered.map((u) => (
               <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/admin/users/${u.id}`)}>
                 <td><code>{u.username}</code></td>
                 <td>{u.display_name}</td>
@@ -151,11 +194,76 @@ export default function AdminDashboard() {
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
-              <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 32 }}>No users yet</td></tr>
+            {filtered.length === 0 && (
+              <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 32 }}>
+                {search ? 'No users match your search' : 'No users yet'}
+              </td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Blink account transactions ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16 }}>Blink Account — skredit@blink.sv</h2>
+        <button className="btn-ghost" style={{ fontSize: 12 }} onClick={loadBlinkTxs}>↻ Refresh</button>
+      </div>
+
+      <div className="card">
+        {blinkError && <p className="error-text">{blinkError}</p>}
+        {!blinkTxs && !blinkError && <p className="muted" style={{ padding: 16, textAlign: 'center' }}>Loading…</p>}
+        {blinkTxs && (
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Direction</th>
+                <th>Amount</th>
+                <th>Fee</th>
+                <th>Memo</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {blinkTxs.map((tx) => (
+                <tr key={tx.id}>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{formatTs(tx.createdAt)}</td>
+                  <td>
+                    {tx.direction === 'RECEIVE' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#4ade80' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 13, height: 13 }} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l6 6a1 1 0 01-1.414 1.414L11 6.414V16a1 1 0 11-2 0V6.414L4.707 10.707a1 1 0 01-1.414-1.414l6-6A1 1 0 0110 3z" clipRule="evenodd" transform="rotate(180 10 10)" />
+                        </svg>
+                        In
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#f87171' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 13, height: 13 }} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l6 6a1 1 0 01-1.414 1.414L11 6.414V16a1 1 0 11-2 0V6.414L4.707 10.707a1 1 0 01-1.414-1.414l6-6A1 1 0 0110 3z" clipRule="evenodd" />
+                        </svg>
+                        Out
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ color: tx.direction === 'RECEIVE' ? '#4ade80' : '#f0f0f0', fontWeight: 500 }}>
+                    {tx.direction === 'RECEIVE' ? '+' : '−'}{Math.abs(tx.settlementAmount).toLocaleString()} sats
+                    {zarPerSat && <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>({formatZAR(Math.abs(tx.settlementAmount), zarPerSat)})</span>}
+                  </td>
+                  <td className="muted">{tx.settlementFee > 0 ? `${tx.settlementFee} sats` : '—'}</td>
+                  <td className="muted" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.memo ?? '—'}</td>
+                  <td>
+                    <span className={`badge ${tx.status === 'SUCCESS' ? 'badge-green' : tx.status === 'PENDING' ? 'badge-yellow' : 'badge-red'}`}>
+                      {tx.status.toLowerCase()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {blinkTxs.length === 0 && (
+                <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 32 }}>No transactions</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

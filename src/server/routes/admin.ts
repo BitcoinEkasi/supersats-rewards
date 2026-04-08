@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import { db } from '../db/index.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { generateKeys } from '../services/crypto.js';
-import { getBalance, payInvoice } from '../services/blink.js';
+import { getBalance, payInvoice, getTransactions } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
 
 const router = Router();
@@ -33,6 +33,15 @@ router.get('/dashboard', async (_req, res) => {
   }
 
   res.json({ users, systemBalance });
+});
+
+router.get('/blink-transactions', async (_req, res) => {
+  try {
+    const txs = await getTransactions(50);
+    res.json(txs);
+  } catch (err: any) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // ── Users ─────────────────────────────────────────────────────────────────────
