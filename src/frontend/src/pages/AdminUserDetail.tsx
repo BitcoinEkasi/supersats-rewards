@@ -246,16 +246,21 @@ export default function AdminUserDetail() {
           <p className="muted" style={{ marginBottom: 4 }}>Balance</p>
           <p style={{ fontSize: 28, fontWeight: 700 }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
           {zarPerSat && <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>{formatZAR(user.balance_sats, zarPerSat)}</p>}
-          <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <input
-              style={{ width: 110 }}
-              type="number"
-              placeholder="sats"
-              value={creditAmount}
-              onChange={(e) => setCreditAmount(e.target.value)}
-              min="1"
-              required
-            />
+          <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <input
+                style={{ width: 110 }}
+                type="number"
+                placeholder="sats"
+                value={creditAmount}
+                onChange={(e) => setCreditAmount(e.target.value)}
+                min="1"
+                required
+              />
+              {zarPerSat && creditAmount && parseInt(creditAmount) > 0 && (
+                <span className="muted" style={{ fontSize: 11 }}>{formatZAR(parseInt(creditAmount), zarPerSat)}</span>
+              )}
+            </div>
             <input
               style={{ flex: 1, minWidth: 100 }}
               placeholder="Note (optional)"
@@ -317,6 +322,9 @@ export default function AdminUserDetail() {
               min="1"
               required
             />
+            {zarPerSat && lnAmount && parseInt(lnAmount) > 0 && (
+              <span className="muted" style={{ fontSize: 11 }}>{formatZAR(parseInt(lnAmount), zarPerSat)}</span>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 120px' }}>
             <label className="muted" style={{ fontSize: 12 }}>Note (optional)</label>
