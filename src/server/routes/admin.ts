@@ -228,19 +228,40 @@ router.get('/users/:id/card/qr', async (req, res) => {
 // Regenerate setup token + new keys (reprogram / replace card)
 router.post('/users/:id/card/reprogram', (req, res) => {
   const userId = Number(req.params.id);
+  const { replacement_type } = req.body as { replacement_type?: string };
+  if (!replacement_type || !['technical', 'lost_damaged'].includes(replacement_type)) {
+    res.status(400).json({ error: 'replacement_type must be "technical" or "lost_damaged"' }); return;
+  }
+
   const existing = db.prepare('SELECT id, card_id FROM cards WHERE user_id = ?').get(userId) as any;
   if (!existing) { res.status(404).json({ error: 'No card found' }); return; }
 
   const keys = generateKeys();
   const setupToken = uuidv4().replace(/-/g, '');
+  const isLostDamaged = replacement_type === 'lost_damaged';
+  const REPLACEMENT_FEE_SATS = 2500;
 
-  db.prepare(`
-    UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1,
-    previous_card_id=?, replaced_at=unixepoch(), wiped_at=NULL
-    WHERE user_id=?
-  `).run(keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, existing.card_id ?? null, userId);
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1,
+      previous_card_id=?, replaced_at=unixepoch(), wiped_at=NULL
+      WHERE user_id=?
+    `).run(keys.k0, keys.k1, keys.k2, keys.k3, keys.k4, setupToken, existing.card_id ?? null, userId);
 
-  db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(userId, 'replaced', existing.card_id ? `Previous card: ${existing.card_id}` : null);
+    const eventDesc = [
+      existing.card_id ? `Previous card: ${existing.card_id}` : null,
+      isLostDamaged ? 'Lost/damaged — fee charged' : 'Technical replacement — no charge',
+    ].filter(Boolean).join(' | ');
+    db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(userId, 'replaced', eventDesc);
+
+    if (isLostDamaged) {
+      db.prepare('UPDATE users SET balance_sats = balance_sats - ? WHERE id = ?').run(REPLACEMENT_FEE_SATS, userId);
+      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
+        userId, 'card_fee', REPLACEMENT_FEE_SATS, 'Card replacement fee (lost/damaged)'
+      );
+    }
+  })();
+
   res.json({ setup_token: setupToken });
 });
 

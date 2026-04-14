@@ -72,6 +72,7 @@ export default function AdminUserDetail() {
     }
   }, [user?.ln_payout_address]);
   const [copied, setCopied] = useState(false);
+  const [replaceModal, setReplaceModal] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
   const [editingCardId, setEditingCardId] = useState(false);
@@ -185,11 +186,12 @@ export default function AdminUserDetail() {
     load();
   }
 
-  async function reprogramCard() {
-    if (!confirm('This will generate new keys and invalidate the current card. Continue?')) return;
+  async function reprogramCard(replacementType: 'technical' | 'lost_damaged') {
+    setReplaceModal(false);
     const res = await fetch(`/api/admin/users/${id}/card/reprogram`, {
       method: 'POST',
-      headers: authHeaders(),
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ replacement_type: replacementType }),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
     load();
@@ -234,6 +236,32 @@ export default function AdminUserDetail() {
 
   return (
     <div className="page">
+      {/* Card replacement type modal */}
+      {replaceModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: 360, margin: 0 }}>
+            <h2 style={{ fontSize: 16, marginBottom: 8 }}>Replace Card</h2>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+              Select the reason for replacing the card. Lost/damaged cards carry a 2,500 sat fee debited from the participant's balance.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button className="btn-ghost" style={{ textAlign: 'left', padding: '10px 14px' }} onClick={() => reprogramCard('technical')}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Technical Replacement</div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Faulty card — no charge to participant</div>
+              </button>
+              <button className="btn-ghost" style={{ textAlign: 'left', padding: '10px 14px', borderColor: '#f7931a' }} onClick={() => reprogramCard('lost_damaged')}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#f7931a' }}>Lost / Damaged</div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  2,500 sat fee debited — balance after: {(user.balance_sats - 2500).toLocaleString()} sats
+                  {user.balance_sats - 2500 < 0 && <span style={{ color: '#dc2626', marginLeft: 6 }}>(negative)</span>}
+                </div>
+              </button>
+              <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => setReplaceModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button className="btn-ghost" onClick={() => navigate('/admin')}>← Back</button>
         <h1 style={{ fontSize: 20 }}>{user.display_name}</h1>
@@ -244,7 +272,7 @@ export default function AdminUserDetail() {
         {/* Balance */}
         <div className="card">
           <p className="muted" style={{ marginBottom: 4 }}>Balance</p>
-          <p style={{ fontSize: 28, fontWeight: 700 }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
+          <p style={{ fontSize: 28, fontWeight: 700, color: user.balance_sats < 0 ? '#dc2626' : undefined }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
           {zarPerSat && <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>{formatZAR(user.balance_sats, zarPerSat)}</p>}
           <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -480,7 +508,7 @@ export default function AdminUserDetail() {
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
-                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Replace Card</button>
+                  <button className="btn-ghost" onClick={() => setReplaceModal(true)} style={{ fontSize: 12 }}>Replace Card</button>
                 </div>
               </div>
             </div>
@@ -581,7 +609,7 @@ export default function AdminUserDetail() {
                       </span>
                     ) : (
                       <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
-                        {tx.type === 'refill' ? '↓ refill' : '↑ spend'}
+                        {tx.type === 'refill' ? '↓ refill' : tx.type === 'card_fee' ? '⚠ card fee' : '↑ spend'}
                       </span>
                     )}
                   </td>
