@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS cards (
 CREATE TABLE IF NOT EXISTS transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL CHECK(type IN ('spend','refill')),
+  type TEXT NOT NULL CHECK(type IN ('spend','refill','card_fee')),
   amount_sats INTEGER NOT NULL,
   payment_hash TEXT,
   description TEXT,

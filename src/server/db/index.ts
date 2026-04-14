@@ -75,6 +75,26 @@ if (!batchItemCols.includes('ln_address')) {
   db.exec('ALTER TABLE payout_batch_items ADD COLUMN ln_address TEXT');
 }
 
+// Migration: add 'card_fee' to transactions type CHECK constraint
+// SQLite can't ALTER a CHECK constraint, so recreate the table
+const txTypeCheck = (db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'`).get() as any)?.sql ?? '';
+if (!txTypeCheck.includes('card_fee')) {
+  db.transaction(() => {
+    db.exec(`CREATE TABLE transactions_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL CHECK(type IN ('spend','refill','card_fee')),
+      amount_sats INTEGER NOT NULL,
+      payment_hash TEXT,
+      description TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )`);
+    db.exec(`INSERT INTO transactions_new SELECT id, user_id, type, amount_sats, payment_hash, description, created_at FROM transactions`);
+    db.exec(`DROP TABLE transactions`);
+    db.exec(`ALTER TABLE transactions_new RENAME TO transactions`);
+  })();
+}
+
 // LN address payout log
 db.exec(`
   CREATE TABLE IF NOT EXISTS ln_payouts (
