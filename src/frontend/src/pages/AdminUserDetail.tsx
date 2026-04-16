@@ -269,13 +269,21 @@ export default function AdminUserDetail() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Technical Replacement</div>
                 <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Faulty card — no charge to participant</div>
               </button>
-              <button className="btn-ghost" style={{ textAlign: 'left', padding: '10px 14px', borderColor: '#f7931a' }} onClick={() => reprogramCard('lost_damaged')}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#f7931a' }}>Lost / Damaged</div>
-                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                  2,500 sat fee debited — balance after: {(user.balance_sats - 2500).toLocaleString()} sats
-                  {user.balance_sats - 2500 < 0 && <span style={{ color: '#dc2626', marginLeft: 6 }}>(negative)</span>}
+              {user.balance_sats >= 2500 ? (
+                <button className="btn-ghost" style={{ textAlign: 'left', padding: '10px 14px', borderColor: '#f7931a' }} onClick={() => reprogramCard('lost_damaged')}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#f7931a' }}>Lost / Damaged</div>
+                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                    2,500 sat fee debited — balance after: {(user.balance_sats - 2500).toLocaleString()} sats
+                  </div>
+                </button>
+              ) : (
+                <div style={{ textAlign: 'left', padding: '10px 14px', border: '1px solid #333', borderRadius: 6, opacity: 0.5 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#888' }}>Lost / Damaged</div>
+                  <div style={{ fontSize: 12, marginTop: 2, color: '#dc2626' }}>
+                    Insufficient balance — needs 2,500 sats (current: {user.balance_sats.toLocaleString()} sats)
+                  </div>
                 </div>
-              </button>
+              )}
               <button className="btn-ghost" style={{ fontSize: 13 }} onClick={() => setReplaceModal(false)}>Cancel</button>
             </div>
           </div>
@@ -292,7 +300,7 @@ export default function AdminUserDetail() {
         {/* Balance */}
         <div className="card">
           <p className="muted" style={{ marginBottom: 4 }}>Balance</p>
-          <p style={{ fontSize: 28, fontWeight: 700, color: user.balance_sats < 0 ? '#dc2626' : undefined }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
+          <p style={{ fontSize: 28, fontWeight: 700 }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
           {zarPerSat && <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>{formatZAR(user.balance_sats, zarPerSat)}</p>}
           <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

@@ -241,6 +241,16 @@ router.post('/users/:id/card/reprogram', (req, res) => {
   const isLostDamaged = replacement_type === 'lost_damaged';
   const REPLACEMENT_FEE_SATS = 2500;
 
+  if (isLostDamaged) {
+    const user = db.prepare('SELECT balance_sats FROM users WHERE id = ?').get(userId) as any;
+    if (!user || user.balance_sats < REPLACEMENT_FEE_SATS) {
+      res.status(402).json({
+        error: `Insufficient balance. Participant needs at least 2,500 sats to cover the replacement fee (current balance: ${user?.balance_sats ?? 0} sats).`
+      });
+      return;
+    }
+  }
+
   db.transaction(() => {
     db.prepare(`
       UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1,
