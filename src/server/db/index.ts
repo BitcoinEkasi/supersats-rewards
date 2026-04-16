@@ -13,6 +13,15 @@ const userColumns = (db.prepare(`PRAGMA table_info(users)`).all() as { name: str
 if (!userColumns.includes('ln_payout_address')) {
   db.exec('ALTER TABLE users ADD COLUMN ln_payout_address TEXT');
 }
+if (!userColumns.includes('division')) {
+  db.exec('ALTER TABLE users ADD COLUMN division TEXT');
+}
+if (!userColumns.includes('tsk_level')) {
+  db.exec('ALTER TABLE users ADD COLUMN tsk_level TEXT');
+}
+if (!userColumns.includes('jc_level')) {
+  db.exec('ALTER TABLE users ADD COLUMN jc_level INTEGER');
+}
 
 const cardColumns = (db.prepare(`PRAGMA table_info(cards)`).all() as { name: string }[]).map(c => c.name);
 if (!cardColumns.includes('card_id')) {

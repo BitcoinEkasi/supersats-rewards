@@ -108,15 +108,20 @@ router.get('/users/:id', (req, res) => {
 
 router.patch('/users/:id', (req, res) => {
   const userId = Number(req.params.id);
-  const { ln_payout_address, display_name } = req.body as { ln_payout_address?: string | null; display_name?: string };
+  const { ln_payout_address, display_name, division, tsk_level, jc_level } = req.body as {
+    ln_payout_address?: string | null;
+    display_name?: string;
+    division?: string | null;
+    tsk_level?: string | null;
+    jc_level?: number | null;
+  };
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-  if (display_name !== undefined) {
-    db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(display_name, userId);
-  }
-  if (ln_payout_address !== undefined) {
-    db.prepare('UPDATE users SET ln_payout_address = ? WHERE id = ?').run(ln_payout_address ?? null, userId);
-  }
+  if (display_name !== undefined) db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(display_name, userId);
+  if (ln_payout_address !== undefined) db.prepare('UPDATE users SET ln_payout_address = ? WHERE id = ?').run(ln_payout_address ?? null, userId);
+  if (division !== undefined) db.prepare('UPDATE users SET division = ? WHERE id = ?').run(division ?? null, userId);
+  if (tsk_level !== undefined) db.prepare('UPDATE users SET tsk_level = ? WHERE id = ?').run(tsk_level ?? null, userId);
+  if (jc_level !== undefined) db.prepare('UPDATE users SET jc_level = ? WHERE id = ?').run(jc_level ?? null, userId);
   res.json({ success: true });
 });
 

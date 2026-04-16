@@ -8,6 +8,9 @@ interface UserBalance {
   balance_sats: number;
   card_id: string | null;
   card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | 'none';
+  division: string | null;
+  tsk_level: string | null;
+  jc_level: number | null;
 }
 
 
@@ -104,21 +107,33 @@ export default function BalancesView() {
         {filtered.length === 0 ? (
           <p className="muted" style={{ textAlign: 'center', marginTop: 32 }}>No participants found.</p>
         ) : filtered.map((u) => (
-          <div key={u.display_name} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {/* Name */}
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3 }}>{u.display_name}</div>
-
-            {/* Card number */}
-            <div className="muted" style={{ fontSize: 12 }}>
-              Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
+          <div key={u.display_name} className="card" style={{ padding: '12px 14px' }}>
+            {/* Top row: name left, sats right */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3, flex: 1 }}>{u.display_name}</div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#f7931a', whiteSpace: 'nowrap' }}>
+                  ⚡ {u.balance_sats.toLocaleString()} sats
+                </div>
+                {zarPerSat && (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{formatZAR(u.balance_sats, zarPerSat)}</div>
+                )}
+              </div>
             </div>
 
-            {/* Balance */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>{u.balance_sats.toLocaleString()}</span>
-              <span className="muted" style={{ fontSize: 12 }}>sats</span>
-              {zarPerSat && (
-                <span className="muted" style={{ fontSize: 13, marginLeft: 4 }}>· {formatZAR(u.balance_sats, zarPerSat)}</span>
+            {/* Bottom row: card, division, tsk level, jc level */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 8 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
+              </span>
+              {u.division && (
+                <span className="muted" style={{ fontSize: 12 }}>{u.division}</span>
+              )}
+              {u.tsk_level && (
+                <span className="muted" style={{ fontSize: 12 }}>TSK: {u.tsk_level}</span>
+              )}
+              {u.jc_level != null && (
+                <span className="muted" style={{ fontSize: 12 }}>JC Level {u.jc_level}</span>
               )}
             </div>
           </div>
