@@ -10,13 +10,6 @@ interface UserBalance {
   card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | 'none';
 }
 
-const cardStatusBadge: Record<string, { label: string; cls: string }> = {
-  active:   { label: 'Active',    cls: 'badge-green' },
-  disabled: { label: 'Disabled',  cls: 'badge-red' },
-  awaiting: { label: 'Awaiting',  cls: 'badge-yellow' },
-  wiped:    { label: 'Wiped',     cls: 'badge-gray' },
-  none:     { label: 'No card',   cls: 'badge-gray' },
-};
 
 export default function BalancesView() {
   const { zarPerSat } = usePriceFeed();
@@ -75,7 +68,8 @@ export default function BalancesView() {
     );
   }
 
-  const filtered = users.filter(u =>
+  const active = users.filter(u => u.card_status === 'active');
+  const filtered = active.filter(u =>
     u.display_name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -85,52 +79,50 @@ export default function BalancesView() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontSize: 22 }}>⚡</span>
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f0f0f0' }}>TSK Balances</h1>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{users.length} participants</span>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{active.length} participants</span>
       </div>
 
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search by name…"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ width: '100%', marginBottom: 12, fontSize: 15, padding: '10px 12px', boxSizing: 'border-box' }}
-      />
+      {/* Search with clear button */}
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <input
+          type="text"
+          placeholder="Search by name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: '100%', fontSize: 15, padding: '10px 36px 10px 12px', boxSizing: 'border-box' }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, lineHeight: 1, padding: 4 }}
+          >×</button>
+        )}
+      </div>
 
       {/* List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.length === 0 ? (
           <p className="muted" style={{ textAlign: 'center', marginTop: 32 }}>No participants found.</p>
-        ) : filtered.map((u) => {
-          const badge = cardStatusBadge[u.card_status] ?? cardStatusBadge.none;
-          return (
-            <div key={u.display_name} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {/* Name + status */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3 }}>{u.display_name}</div>
-                <span className={`badge ${badge.cls}`} style={{ flexShrink: 0, fontSize: 11 }}>{badge.label}</span>
-              </div>
+        ) : filtered.map((u) => (
+          <div key={u.display_name} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Name */}
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3 }}>{u.display_name}</div>
 
-              {/* Card number */}
-              <div className="muted" style={{ fontSize: 12 }}>
-                Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
-              </div>
-
-              {/* Balance */}
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>
-                  {u.balance_sats.toLocaleString()}
-                </span>
-                <span className="muted" style={{ fontSize: 12 }}>sats</span>
-                {zarPerSat && (
-                  <span className="muted" style={{ fontSize: 13, marginLeft: 4 }}>
-                    · {formatZAR(u.balance_sats, zarPerSat)}
-                  </span>
-                )}
-              </div>
+            {/* Card number */}
+            <div className="muted" style={{ fontSize: 12 }}>
+              Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
             </div>
-          );
-        })}
+
+            {/* Balance */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>{u.balance_sats.toLocaleString()}</span>
+              <span className="muted" style={{ fontSize: 12 }}>sats</span>
+              {zarPerSat && (
+                <span className="muted" style={{ fontSize: 13, marginLeft: 4 }}>· {formatZAR(u.balance_sats, zarPerSat)}</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
