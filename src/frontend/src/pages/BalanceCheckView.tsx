@@ -53,11 +53,11 @@ function extractPQ(url: string): { p: string; c: string } | null {
   return null;
 }
 
-type State = 'unsupported' | 'scanning' | 'loading' | 'result' | 'error';
+type State = 'unsupported' | 'idle' | 'scanning' | 'loading' | 'result' | 'error';
 
 export default function BalanceCheckView() {
   const { zarPerSat } = usePriceFeed();
-  const [state, setState] = useState<State>('scanning');
+  const [state, setState] = useState<State>('NDEFReader' in window ? 'idle' : 'unsupported');
   const [result, setResult] = useState<CardResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const readerRef = useRef<any>(null);
@@ -66,11 +66,6 @@ export default function BalanceCheckView() {
     setState('scanning');
     setResult(null);
     setErrorMsg('');
-
-    if (!('NDEFReader' in window)) {
-      setState('unsupported');
-      return;
-    }
 
     try {
       const reader = new (window as any).NDEFReader();
@@ -121,7 +116,7 @@ export default function BalanceCheckView() {
       await reader.scan();
     } catch (err: any) {
       if (err?.name === 'NotAllowedError') {
-        setErrorMsg('NFC permission denied. Please allow NFC access.');
+        setErrorMsg('NFC permission denied. Please check that NFC is enabled in your phone settings and try again.');
         setState('error');
       } else {
         setState('unsupported');
@@ -130,8 +125,7 @@ export default function BalanceCheckView() {
   }
 
   useEffect(() => {
-    startScan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { readerRef.current = null; };
   }, []);
 
   const bg = '#0f0f0f';
@@ -146,6 +140,21 @@ export default function BalanceCheckView() {
             This page requires NFC support.<br />
             Please use <strong>Chrome on Android</strong> to use this feature.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === 'idle') {
+    return (
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ textAlign: 'center', maxWidth: 320 }}>
+          <div style={{ fontSize: 72, marginBottom: 20 }}>💳</div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f0f0f0', marginBottom: 8 }}>Card Balance Check</h1>
+          <p className="muted" style={{ fontSize: 14, marginBottom: 28 }}>Press the button below, then hold your BoltCard to the back of your phone</p>
+          <button className="btn-primary" onClick={startScan} style={{ width: '100%', padding: '13px 0', fontSize: 16 }}>
+            Start Scanning
+          </button>
         </div>
       </div>
     );
