@@ -20,6 +20,8 @@ interface UserDetail {
     uid: string | null;
     counter: number;
     day_spent_sats: number;
+    tx_max_sats: number;
+    day_max_sats: number;
     setup_token: string | null;
     wipe_token: string | null;
     programmed_at: number | null;
@@ -73,6 +75,9 @@ export default function AdminUserDetail() {
   }, [user?.ln_payout_address]);
   const [copied, setCopied] = useState(false);
   const [replaceModal, setReplaceModal] = useState(false);
+  const [editingLimits, setEditingLimits] = useState(false);
+  const [txMaxInput, setTxMaxInput] = useState('');
+  const [dayMaxInput, setDayMaxInput] = useState('');
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [wipeQrUrl, setWipeQrUrl] = useState<string | null>(null);
   const [editingCardId, setEditingCardId] = useState(false);
@@ -194,6 +199,21 @@ export default function AdminUserDetail() {
       body: JSON.stringify({ replacement_type: replacementType }),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
+  }
+
+  async function saveLimits(e: React.FormEvent) {
+    e.preventDefault();
+    const tx = parseInt(txMaxInput);
+    const day = parseInt(dayMaxInput);
+    if (!tx || !day || tx <= 0 || day <= 0) { alert('Enter valid positive values'); return; }
+    const res = await fetch(`/api/admin/users/${id}/card/limits`, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tx_max_sats: tx, day_max_sats: day }),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    setEditingLimits(false);
     load();
   }
 
@@ -503,6 +523,34 @@ export default function AdminUserDetail() {
                     </tr>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Day spent</td><td>{user.card.day_spent_sats.toLocaleString()} sats</td></tr>
                     <tr><td className="muted" style={{ paddingLeft: 0 }}>Counter</td><td>{user.card.counter === -1 ? 'Never tapped' : user.card.counter}</td></tr>
+                    <tr>
+                      <td className="muted" style={{ paddingLeft: 0, verticalAlign: 'top', paddingTop: 6 }}>Spending limits</td>
+                      <td>
+                        {editingLimits ? (
+                          <form onSubmit={saveLimits} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <label className="muted" style={{ fontSize: 12, width: 80 }}>Per tap</label>
+                              <input type="number" value={txMaxInput} onChange={e => setTxMaxInput(e.target.value)} min="1" style={{ width: 110, fontSize: 12 }} placeholder="sats" required />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <label className="muted" style={{ fontSize: 12, width: 80 }}>Per day</label>
+                              <input type="number" value={dayMaxInput} onChange={e => setDayMaxInput(e.target.value)} min="1" style={{ width: 110, fontSize: 12 }} placeholder="sats" required />
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button type="submit" className="btn-primary" style={{ fontSize: 11, padding: '2px 8px' }}>Save</button>
+                              <button type="button" className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setEditingLimits(false)}>Cancel</button>
+                            </div>
+                          </form>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            <span>{user.card.tx_max_sats >= 999999999 ? 'Unlimited' : user.card.tx_max_sats.toLocaleString()} / tap</span>
+                            <span className="muted">·</span>
+                            <span>{user.card.day_max_sats >= 999999999 ? 'Unlimited' : user.card.day_max_sats.toLocaleString()} / day</span>
+                            <button className="btn-ghost" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => { setTxMaxInput(String(user.card!.tx_max_sats)); setDayMaxInput(String(user.card!.day_max_sats)); setEditingLimits(true); }}>Edit</button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
 
