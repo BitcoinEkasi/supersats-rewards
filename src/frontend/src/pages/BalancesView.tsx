@@ -4,6 +4,7 @@ import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';
 const STORAGE_KEY = 'balances_passcode';
 
 interface UserBalance {
+  id: number;
   display_name: string;
   balance_sats: number;
   card_id: string | null;
@@ -13,6 +14,41 @@ interface UserBalance {
   jc_level: number | null;
 }
 
+interface Transaction {
+  id: number | string;
+  type: string;
+  amount_sats: number;
+  description: string | null;
+  status?: string;
+  created_at: number;
+}
+
+interface UserDetail {
+  display_name: string;
+  balance_sats: number;
+  transactions: Transaction[];
+}
+
+function txLabel(type: string) {
+  if (type === 'refill') return 'Credit';
+  if (type === 'spend') return 'Spend';
+  if (type === 'card_fee') return 'Card fee';
+  if (type === 'ln_payout') return 'LN payout';
+  return type;
+}
+
+function txColor(type: string) {
+  if (type === 'refill') return '#4ade80';
+  if (type === 'spend' || type === 'card_fee') return '#f87171';
+  if (type === 'ln_payout') return '#facc15';
+  return '#aaa';
+}
+
+function formatDate(unixSecs: number) {
+  return new Date(unixSecs * 1000).toLocaleDateString('en-ZA', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
 
 export default function BalancesView() {
   const { zarPerSat } = usePriceFeed();
@@ -21,6 +57,8 @@ export default function BalancesView() {
   const [users, setUsers] = useState<UserBalance[] | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<UserDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   async function fetchBalances(code: string): Promise<boolean> {
     const res = await fetch('/api/balances', { headers: { 'X-Passcode': code } });
@@ -42,6 +80,15 @@ export default function BalancesView() {
     setLoading(false);
     if (ok) sessionStorage.setItem(STORAGE_KEY, passcode);
     else setError('Incorrect passcode. Please try again.');
+  }
+
+  async function openDetail(user: UserBalance) {
+    setLoadingDetail(true);
+    setSelected({ display_name: user.display_name, balance_sats: user.balance_sats, transactions: [] });
+    const code = sessionStorage.getItem(STORAGE_KEY) ?? '';
+    const res = await fetch(`/api/balances/${user.id}/transactions`, { headers: { 'X-Passcode': code } });
+    if (res.ok) setSelected(await res.json());
+    setLoadingDetail(false);
   }
 
   if (!users) {
@@ -85,7 +132,7 @@ export default function BalancesView() {
         <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{active.length} participants</span>
       </div>
 
-      {/* Search with clear button */}
+      {/* Search */}
       <div style={{ position: 'relative', marginBottom: 12 }}>
         <input
           type="text"
@@ -107,7 +154,12 @@ export default function BalancesView() {
         {filtered.length === 0 ? (
           <p className="muted" style={{ textAlign: 'center', marginTop: 32 }}>No participants found.</p>
         ) : filtered.map((u) => (
-          <div key={u.display_name} className="card" style={{ padding: '12px 14px' }}>
+          <div
+            key={u.id}
+            className="card"
+            style={{ padding: '12px 14px', cursor: 'pointer' }}
+            onClick={() => openDetail(u)}
+          >
             {/* Row 1: name left, sats right */}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3, flex: 1 }}>{u.display_name}</div>
@@ -137,6 +189,61 @@ export default function BalancesView() {
           </div>
         ))}
       </div>
+
+      {/* Transaction modal */}
+      {selected && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={() => setSelected(null)}
+        >
+          <div
+            style={{ background: '#1a1a1a', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#f0f0f0' }}>{selected.display_name}</div>
+                <div style={{ fontSize: 14, color: '#f7931a', marginTop: 2 }}>
+                  ⚡ {selected.balance_sats.toLocaleString()} sats
+                  {zarPerSat && <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{formatZAR(selected.balance_sats, zarPerSat)}</span>}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                style={{ background: 'none', border: 'none', color: '#888', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}
+              >×</button>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 12, marginTop: 4 }}>Transaction history</div>
+
+            {/* Transactions */}
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {loadingDetail ? (
+                <p className="muted" style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>Loading…</p>
+              ) : selected.transactions.length === 0 ? (
+                <p className="muted" style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>No transactions yet.</p>
+              ) : selected.transactions.map((tx) => (
+                <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#242424', borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: txColor(tx.type), fontWeight: 600 }}>{txLabel(tx.type)}</div>
+                    {tx.description && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{tx.description}</div>}
+                    <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatDate(tx.created_at)}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: tx.type === 'refill' ? '#4ade80' : '#f0f0f0' }}>
+                      {tx.type === 'refill' ? '+' : '-'}{tx.amount_sats.toLocaleString()} sats
+                    </div>
+                    {zarPerSat && (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatZAR(tx.amount_sats, zarPerSat)}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
