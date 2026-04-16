@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(`
     SELECT u.id, u.display_name, u.username, u.balance_sats,
-           c.programmed_at, c.enabled, c.setup_token, c.wiped_at
+           c.card_id, c.programmed_at, c.enabled, c.setup_token, c.wiped_at
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
     ORDER BY u.balance_sats DESC, u.display_name ASC
@@ -29,8 +29,8 @@ router.get('/', (req, res) => {
     }
     return {
       display_name: r.display_name,
-      username: r.username,
       balance_sats: r.balance_sats,
+      card_id: r.card_id ?? null,
       card_status,
     };
   });

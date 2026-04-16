@@ -5,8 +5,8 @@ const STORAGE_KEY = 'balances_passcode';
 
 interface UserBalance {
   display_name: string;
-  username: string;
   balance_sats: number;
+  card_id: string | null;
   card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | 'none';
 }
 
@@ -27,16 +27,12 @@ export default function BalancesView() {
   const [loading, setLoading] = useState(false);
 
   async function fetchBalances(code: string): Promise<boolean> {
-    const res = await fetch('/api/balances', {
-      headers: { 'X-Passcode': code },
-    });
+    const res = await fetch('/api/balances', { headers: { 'X-Passcode': code } });
     if (!res.ok) return false;
-    const data = await res.json();
-    setUsers(data);
+    setUsers(await res.json());
     return true;
   }
 
-  // Try stored passcode on mount
   useEffect(() => {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) fetchBalances(stored).then((ok) => { if (!ok) sessionStorage.removeItem(STORAGE_KEY); });
@@ -48,18 +44,15 @@ export default function BalancesView() {
     setLoading(true);
     const ok = await fetchBalances(passcode);
     setLoading(false);
-    if (ok) {
-      sessionStorage.setItem(STORAGE_KEY, passcode);
-    } else {
-      setError('Incorrect passcode. Please try again.');
-    }
+    if (ok) sessionStorage.setItem(STORAGE_KEY, passcode);
+    else setError('Incorrect passcode. Please try again.');
   }
 
   if (!users) {
     return (
-      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div className="card" style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: '#0f0f0f' }}>
+        <div className="card" style={{ width: '100%', maxWidth: 340, textAlign: 'center', padding: 28 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
           <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>TSK Balances</h1>
           <p className="muted" style={{ marginBottom: 20, fontSize: 13 }}>Enter the passcode to view participant balances.</p>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -70,10 +63,10 @@ export default function BalancesView() {
               onChange={e => setPasscode(e.target.value)}
               required
               autoFocus
-              style={{ textAlign: 'center', letterSpacing: 2 }}
+              style={{ textAlign: 'center', letterSpacing: 3, fontSize: 16 }}
             />
             {error && <p className="error-text" style={{ margin: 0, fontSize: 13 }}>{error}</p>}
-            <button type="submit" className="btn-primary" disabled={loading}>
+            <button type="submit" className="btn-primary" disabled={loading} style={{ fontSize: 15, padding: '10px 0' }}>
               {loading ? 'Checking…' : 'View Balances'}
             </button>
           </form>
@@ -83,58 +76,61 @@ export default function BalancesView() {
   }
 
   const filtered = users.filter(u =>
-    u.display_name.toLowerCase().includes(search.toLowerCase()) ||
-    u.username.toLowerCase().includes(search.toLowerCase())
+    u.display_name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="page" style={{ paddingTop: 32, paddingBottom: 40 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-        <span style={{ fontSize: 24 }}>⚡</span>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>TSK Balances</h1>
-        <span className="muted" style={{ fontSize: 13, marginLeft: 'auto' }}>{users.length} participants</span>
+    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 12px 40px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 22 }}>⚡</span>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f0f0f0' }}>TSK Balances</h1>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{users.length} participants</span>
       </div>
 
+      {/* Search */}
       <input
         type="text"
-        placeholder="Search by name or username…"
+        placeholder="Search by name…"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        style={{ width: '100%', marginBottom: 16, fontSize: 14 }}
+        style={{ width: '100%', marginBottom: 12, fontSize: 15, padding: '10px 12px', boxSizing: 'border-box' }}
       />
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #2a2a2a' }}>
-              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, color: '#888', fontWeight: 500 }}>Participant</th>
-              <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: '#888', fontWeight: 500 }}>Balance</th>
-              <th style={{ padding: '10px 16px', textAlign: 'center', fontSize: 12, color: '#888', fontWeight: 500 }}>Card</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={3} className="muted" style={{ padding: '24px 16px', textAlign: 'center' }}>No participants found.</td></tr>
-            ) : filtered.map((u, i) => {
-              const badge = cardStatusBadge[u.card_status] ?? cardStatusBadge.none;
-              return (
-                <tr key={u.username} style={{ borderTop: i === 0 ? 'none' : '1px solid #1f1f1f' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.display_name}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>@{u.username}</div>
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 12 }}>sats</span></div>
-                    {zarPerSat && <div className="muted" style={{ fontSize: 12 }}>{formatZAR(u.balance_sats, zarPerSat)}</div>}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <span className={`badge ${badge.cls}`}>{badge.label}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtered.length === 0 ? (
+          <p className="muted" style={{ textAlign: 'center', marginTop: 32 }}>No participants found.</p>
+        ) : filtered.map((u) => {
+          const badge = cardStatusBadge[u.card_status] ?? cardStatusBadge.none;
+          return (
+            <div key={u.display_name} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Name + status */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3 }}>{u.display_name}</div>
+                <span className={`badge ${badge.cls}`} style={{ flexShrink: 0, fontSize: 11 }}>{badge.label}</span>
+              </div>
+
+              {/* Card number */}
+              <div className="muted" style={{ fontSize: 12 }}>
+                Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
+              </div>
+
+              {/* Balance */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>
+                  {u.balance_sats.toLocaleString()}
+                </span>
+                <span className="muted" style={{ fontSize: 12 }}>sats</span>
+                {zarPerSat && (
+                  <span className="muted" style={{ fontSize: 13, marginLeft: 4 }}>
+                    · {formatZAR(u.balance_sats, zarPerSat)}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
