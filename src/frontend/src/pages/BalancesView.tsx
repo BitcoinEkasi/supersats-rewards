@@ -111,29 +111,23 @@ export default function BalancesView() {
             {/* Top row: name left, sats right */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3, flex: 1 }}>{u.display_name}</div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#f7931a', whiteSpace: 'nowrap' }}>
-                  ⚡ {u.balance_sats.toLocaleString()} sats
-                </div>
-                {zarPerSat && (
-                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{formatZAR(u.balance_sats, zarPerSat)}</div>
-                )}
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#f7931a', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                ⚡ {u.balance_sats.toLocaleString()} sats
               </div>
             </div>
 
-            {/* Bottom row: card, division, tsk level, jc level */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 8 }}>
-              <span className="muted" style={{ fontSize: 12 }}>
-                Card: {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
-              </span>
-              {u.division && (
-                <span className="muted" style={{ fontSize: 12 }}>{u.division}</span>
-              )}
-              {u.tsk_level && (
-                <span className="muted" style={{ fontSize: 12 }}>TSK: {u.tsk_level}</span>
-              )}
-              {u.jc_level != null && (
-                <span className="muted" style={{ fontSize: 12 }}>JC Level {u.jc_level}</span>
+            {/* Second row: meta left, ZAR right — same line */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
+                </span>
+                {u.division && <span className="muted" style={{ fontSize: 12 }}>{u.division}</span>}
+                {u.tsk_level && <span className="muted" style={{ fontSize: 12 }}>{u.tsk_level}</span>}
+                {u.jc_level != null && <span className="muted" style={{ fontSize: 12 }}>JC {u.jc_level}</span>}
+              </div>
+              {zarPerSat && (
+                <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>{formatZAR(u.balance_sats, zarPerSat)}</span>
               )}
             </div>
           </div>
