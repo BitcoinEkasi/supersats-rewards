@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
            c.card_id, c.programmed_at, c.enabled, c.setup_token, c.wiped_at
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
+    WHERE u.username != 'test'
     ORDER BY u.balance_sats DESC, u.display_name ASC
   `).all() as any[];
 
