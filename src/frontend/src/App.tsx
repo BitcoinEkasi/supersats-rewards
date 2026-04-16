@@ -4,6 +4,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminUserDetail from './pages/AdminUserDetail';
 import UserView from './pages/UserView';
 import BalancesView from './pages/BalancesView';
+import BalanceCheckView from './pages/BalanceCheckView';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/admin/users/:id" element={<ProtectedRoute><AdminUserDetail /></ProtectedRoute>} />
         <Route path="/u/:magic_token" element={<UserView />} />
         <Route path="/balances" element={<BalancesView />} />
+        <Route path="/balance_check" element={<BalanceCheckView />} />
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
     </BrowserRouter>
