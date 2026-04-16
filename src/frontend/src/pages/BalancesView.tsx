@@ -168,24 +168,20 @@ export default function BalancesView() {
               </div>
             </div>
 
-            {/* Row 2: card number left, ZAR right */}
+            {/* Row 2: card, division, TSK, JC left — ZAR right */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 3 }}>
-              <span className="muted" style={{ fontSize: 12 }}>
-                {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
-              </span>
-              {zarPerSat && (
-                <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>{formatZAR(u.balance_sats, zarPerSat)}</span>
-              )}
-            </div>
-
-            {/* Row 3: division, TSK level, JC level */}
-            {(u.division || u.tsk_level || u.jc_level != null) && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 3 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {u.card_id ? <code style={{ color: '#aaa', fontSize: 12 }}>{u.card_id}</code> : <span>—</span>}
+                </span>
                 {u.division && <span className="muted" style={{ fontSize: 12 }}>{u.division}</span>}
                 {u.tsk_level && <span className="muted" style={{ fontSize: 12 }}>{u.tsk_level}</span>}
                 {u.jc_level != null && <span className="muted" style={{ fontSize: 12 }}>JC {u.jc_level}</span>}
               </div>
-            )}
+              {zarPerSat && (
+                <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>{formatZAR(u.balance_sats, zarPerSat)}</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
