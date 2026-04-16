@@ -17,6 +17,7 @@ import lnurlwRoutes from './routes/lnurlw.js';
 import lnurlpRoutes from './routes/lnurlp.js';
 import apiRoutes from './routes/api.js';
 import userRoutes from './routes/user.js';
+import balancesRoute from './routes/balances.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3001);
@@ -141,6 +142,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/card', cardRoutes);
 app.use('/api/v1', apiRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/balances', balancesRoute);
 
 // ── Static frontend (production) ──────────────────────────────────────────────
 
