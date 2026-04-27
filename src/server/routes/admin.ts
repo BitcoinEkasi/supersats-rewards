@@ -400,6 +400,21 @@ router.post('/users/:id/ln-payout', async (req, res) => {
   res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
 });
 
+// ── Balance summary ───────────────────────────────────────────────────────────
+
+router.get('/balance-summary', async (_req, res) => {
+  const { total: totalUserBalance } = db
+    .prepare('SELECT COALESCE(SUM(balance_sats), 0) AS total FROM users')
+    .get() as { total: number };
+  let blinkBalance = 0;
+  try {
+    blinkBalance = await getBalance();
+  } catch (err) {
+    console.error('[admin] balance-summary getBalance error:', err);
+  }
+  res.json({ blinkBalance, totalUserBalance, reserveSats: blinkBalance - totalUserBalance });
+});
+
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
 router.post('/api-keys', (req, res) => {

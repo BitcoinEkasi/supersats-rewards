@@ -58,6 +58,7 @@ export default function AdminUserDetail() {
   const { zarPerSat } = usePriceFeed();
   const [user, setUser] = useState<UserDetail | null>(null);
   const [error, setError] = useState('');
+  const [balanceSummary, setBalanceSummary] = useState<{ blinkBalance: number; totalUserBalance: number; reserveSats: number } | null>(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc] = useState('');
   const [creditError, setCreditError] = useState('');
@@ -84,10 +85,14 @@ export default function AdminUserDetail() {
   const [cardIdInput, setCardIdInput] = useState('');
 
   async function load() {
-    const res = await fetch(`/api/admin/users/${id}`, { headers: authHeaders() });
+    const [res, summaryRes] = await Promise.all([
+      fetch(`/api/admin/users/${id}`, { headers: authHeaders() }),
+      fetch('/api/admin/balance-summary', { headers: authHeaders() }),
+    ]);
     if (!res.ok) { setError('User not found'); return; }
     const data = await res.json();
     setUser(data);
+    if (summaryRes.ok) setBalanceSummary(await summaryRes.json());
     if (data.card?.setup_token) {
       const qrRes = await fetch(`/api/admin/users/${id}/card/qr`, { headers: authHeaders() });
       if (qrRes.ok) {
@@ -149,6 +154,11 @@ export default function AdminUserDetail() {
   async function credit(e: React.FormEvent) {
     e.preventDefault();
     setCreditError('');
+    const amount = parseInt(creditAmount);
+    if (balanceSummary !== null && amount > balanceSummary.reserveSats) {
+      setCreditError(`Exceeds reserve — only ${balanceSummary.reserveSats.toLocaleString()} sats available`);
+      return;
+    }
     const res = await fetch(`/api/admin/users/${id}/credit`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -164,6 +174,11 @@ export default function AdminUserDetail() {
   async function sendToLnAddress(e: React.FormEvent) {
     e.preventDefault();
     setLnResult(null);
+    const amount = parseInt(lnAmount);
+    if (balanceSummary !== null && amount > balanceSummary.reserveSats) {
+      setLnResult({ status: 'failed', message: `Exceeds reserve — only ${balanceSummary.reserveSats.toLocaleString()} sats available` });
+      return;
+    }
     setLnLoading(true);
     const res = await fetch(`/api/admin/users/${id}/ln-payout`, {
       method: 'POST',
@@ -302,7 +317,19 @@ export default function AdminUserDetail() {
           <p className="muted" style={{ marginBottom: 4 }}>Balance</p>
           <p style={{ fontSize: 28, fontWeight: 700 }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
           {zarPerSat && <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>{formatZAR(user.balance_sats, zarPerSat)}</p>}
-          <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {balanceSummary !== null && (
+            <p style={{ fontSize: 11, marginTop: 6, marginBottom: 2 }}>
+              <span className="muted">Reserve: </span>
+              <strong style={{ color: balanceSummary.reserveSats <= 0 ? '#dc2626' : '#4ade80' }}>
+                {balanceSummary.reserveSats.toLocaleString()} sats
+              </strong>
+              {zarPerSat && balanceSummary.reserveSats > 0 && (
+                <span className="muted"> ({formatZAR(balanceSummary.reserveSats, zarPerSat)})</span>
+              )}
+              <span className="muted"> available</span>
+            </p>
+          )}
+          <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <input
                 style={{ width: 110 }}
@@ -311,6 +338,7 @@ export default function AdminUserDetail() {
                 value={creditAmount}
                 onChange={(e) => setCreditAmount(e.target.value)}
                 min="1"
+                max={balanceSummary?.reserveSats ?? undefined}
                 required
               />
               {zarPerSat && creditAmount && parseInt(creditAmount) > 0 && (
@@ -323,7 +351,13 @@ export default function AdminUserDetail() {
               value={creditDesc}
               onChange={(e) => setCreditDesc(e.target.value)}
             />
-            <button type="submit" className="btn-primary">Credit</button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={balanceSummary !== null && balanceSummary.reserveSats <= 0}
+            >
+              Credit
+            </button>
           </form>
           {creditError && <p className="error-text" style={{ marginTop: 6 }}>{creditError}</p>}
           {user.ln_payout_address && (
@@ -356,7 +390,18 @@ export default function AdminUserDetail() {
 
       {/* Send to Lightning Address */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Send to Lightning Address</h2>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16 }}>Send to Lightning Address</h2>
+          {balanceSummary !== null && (
+            <span style={{ fontSize: 11 }}>
+              <span className="muted">Reserve: </span>
+              <strong style={{ color: balanceSummary.reserveSats <= 0 ? '#dc2626' : '#4ade80' }}>
+                {balanceSummary.reserveSats.toLocaleString()} sats
+              </strong>
+              <span className="muted"> available</span>
+            </span>
+          )}
+        </div>
         <form onSubmit={sendToLnAddress} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '2 1 200px' }}>
             <label className="muted" style={{ fontSize: 12 }}>Lightning Address</label>
@@ -376,6 +421,7 @@ export default function AdminUserDetail() {
               value={lnAmount}
               onChange={e => setLnAmount(e.target.value)}
               min="1"
+              max={balanceSummary?.reserveSats ?? undefined}
               required
             />
             {zarPerSat && lnAmount && parseInt(lnAmount) > 0 && (
@@ -391,7 +437,11 @@ export default function AdminUserDetail() {
               onChange={e => setLnDesc(e.target.value)}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={lnLoading}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={lnLoading || (balanceSummary !== null && balanceSummary.reserveSats <= 0)}
+          >
             {lnLoading ? 'Sending…' : 'Send'}
           </button>
         </form>

@@ -119,17 +119,40 @@ export default function AdminDashboard() {
     return !q || u.username.includes(q) || u.display_name.toLowerCase().includes(q);
   });
 
+  const totalUserBalance = users.reduce((s, u) => s + u.balance_sats, 0);
+  const reserveSats = systemBalance !== null ? systemBalance - totalUserBalance : null;
+
   return (
     <div className="page">
       {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: 22 }}>⚡ BoltCard Admin</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           {systemBalance !== null && (
-            <span className="muted">
-              Blink: <strong style={{ color: '#f0f0f0' }}>{systemBalance.toLocaleString()} sats</strong>
-              {zarPerSat && <span style={{ color: '#888', marginLeft: 6 }}>({formatZAR(systemBalance, zarPerSat)})</span>}
-            </span>
+            <>
+              <span style={{ fontSize: 12 }}>
+                <span className="muted">Wallet </span>
+                <strong style={{ color: '#f0f0f0' }}>{systemBalance.toLocaleString()}</strong>
+                <span className="muted"> sats</span>
+                {zarPerSat && <span style={{ color: '#666', marginLeft: 4 }}>({formatZAR(systemBalance, zarPerSat)})</span>}
+              </span>
+              <span style={{ color: '#444' }}>·</span>
+              <span style={{ fontSize: 12 }}>
+                <span className="muted">Issued </span>
+                <strong style={{ color: '#f0f0f0' }}>{totalUserBalance.toLocaleString()}</strong>
+                <span className="muted"> sats</span>
+                {zarPerSat && <span style={{ color: '#666', marginLeft: 4 }}>({formatZAR(totalUserBalance, zarPerSat)})</span>}
+              </span>
+              <span style={{ color: '#444' }}>·</span>
+              <span style={{ fontSize: 12 }}>
+                <span className="muted">Reserve </span>
+                <strong style={{ color: reserveSats! < 0 ? '#dc2626' : reserveSats! === 0 ? '#facc15' : '#4ade80' }}>
+                  {reserveSats!.toLocaleString()}
+                </strong>
+                <span className="muted"> sats</span>
+                {zarPerSat && <span style={{ color: '#666', marginLeft: 4 }}>({formatZAR(reserveSats!, zarPerSat)})</span>}
+              </span>
+            </>
           )}
           <button className="btn-ghost" onClick={logout}>Logout</button>
         </div>
