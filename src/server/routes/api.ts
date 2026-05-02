@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { db } from '../db/index.js';
 import { requireApiKey } from '../middleware/apiKeyAuth.js';
 import { generateKeys } from '../services/crypto.js';
-import { createInvoice, payInvoice } from '../services/blink.js';
+import { createInvoice, payInvoice, getBalance } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
 
 const router = Router();
@@ -189,8 +189,9 @@ router.post('/users/:id/credit', (req, res) => {
 // users are credited automatically via the Blink subscription handler.
 
 router.post('/payout/batch', async (req, res) => {
-  const { memo, payouts } = req.body as {
+  const { memo, payouts, invoice_sats } = req.body as {
     memo?: string;
+    invoice_sats?: number;
     payouts?: { user_id: number; amount_sats: number; description?: string; payout_type?: string; ln_address?: string }[];
   };
   if (!payouts || !Array.isArray(payouts) || payouts.length === 0) {
@@ -211,11 +212,13 @@ router.post('/payout/batch', async (req, res) => {
   }
 
   const totalSats = payouts.reduce((sum, p) => sum + p.amount_sats, 0);
+  // invoice_sats allows a partial top-up: invoice covers only the shortfall, reserves cover the rest
+  const invoiceAmount = (invoice_sats && invoice_sats > 0 && invoice_sats < totalSats) ? invoice_sats : totalSats;
   const batchMemo = memo ?? 'TSK monthly reward payout';
 
   let invoice: { paymentHash: string; paymentRequest: string };
   try {
-    invoice = await createInvoice(totalSats, batchMemo);
+    invoice = await createInvoice(invoiceAmount, batchMemo);
   } catch (err: any) {
     res.status(502).json({ error: `Failed to create Lightning invoice: ${err.message}` });
     return;
@@ -227,8 +230,8 @@ router.post('/payout/batch', async (req, res) => {
   }).then((dataUrl: string) => dataUrl.replace(/^data:image\/png;base64,/, ''));
 
   const batchResult = db.prepare(
-    'INSERT INTO payout_batches (payment_hash, payment_request, total_sats, memo) VALUES (?, ?, ?, ?)'
-  ).run(invoice.paymentHash, invoice.paymentRequest, totalSats, batchMemo);
+    'INSERT INTO payout_batches (payment_hash, payment_request, total_sats, invoice_sats, memo) VALUES (?, ?, ?, ?, ?)'
+  ).run(invoice.paymentHash, invoice.paymentRequest, totalSats, invoiceAmount < totalSats ? invoiceAmount : null, batchMemo);
 
   const batchId = batchResult.lastInsertRowid as number;
   const insertItem = db.prepare(
@@ -242,7 +245,7 @@ router.post('/payout/batch', async (req, res) => {
     batch_id: batchId,
     payment_hash: invoice.paymentHash,
     payment_request: invoice.paymentRequest,
-    total_sats: totalSats,
+    total_sats: invoiceAmount,
     qr_base64: qrBase64,
   });
 });
@@ -284,6 +287,116 @@ router.post('/users/:id/ln-payout', async (req, res) => {
   ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null);
 
   res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
+});
+
+// ── GET /api/v1/payout/reserve ────────────────────────────────────────────────
+
+router.get('/payout/reserve', async (_req, res) => {
+  const { total: totalUserBalance } = db
+    .prepare('SELECT COALESCE(SUM(balance_sats), 0) AS total FROM users')
+    .get() as { total: number };
+  let blinkBalance = 0;
+  try {
+    blinkBalance = await getBalance();
+  } catch (err) {
+    console.error('[api] payout/reserve getBalance error:', err);
+  }
+  res.json({ reserve_sats: blinkBalance - totalUserBalance });
+});
+
+// ── POST /api/v1/payout/batch/direct ─────────────────────────────────────────
+
+router.post('/payout/batch/direct', async (req, res) => {
+  const { memo, payouts } = req.body as {
+    memo?: string;
+    payouts?: { user_id: number; amount_sats: number; description?: string; payout_type?: string; ln_address?: string }[];
+  };
+  if (!payouts || !Array.isArray(payouts) || payouts.length === 0) {
+    res.status(400).json({ error: 'payouts array required' });
+    return;
+  }
+
+  for (const p of payouts) {
+    const u = db.prepare('SELECT id FROM users WHERE id = ?').get(p.user_id);
+    if (!u) { res.status(400).json({ error: `User ${p.user_id} not found` }); return; }
+    if (!p.amount_sats || p.amount_sats <= 0) {
+      res.status(400).json({ error: `Invalid amount_sats for user ${p.user_id}` }); return;
+    }
+    if (p.payout_type === 'ln_address' && !p.ln_address) {
+      res.status(400).json({ error: `ln_address required for user ${p.user_id} with payout_type ln_address` }); return;
+    }
+  }
+
+  const totalSats = payouts.reduce((sum, p) => sum + p.amount_sats, 0);
+
+  // Verify reserve is sufficient
+  const { total: totalUserBalance } = db
+    .prepare('SELECT COALESCE(SUM(balance_sats), 0) AS total FROM users')
+    .get() as { total: number };
+  let blinkBalance = 0;
+  try {
+    blinkBalance = await getBalance();
+  } catch (err: any) {
+    res.status(502).json({ error: `Failed to fetch balance: ${err.message}` });
+    return;
+  }
+  const reserveSats = blinkBalance - totalUserBalance;
+  if (reserveSats < totalSats) {
+    res.status(402).json({ error: `Insufficient reserves: ${reserveSats} sats available, ${totalSats} sats required` });
+    return;
+  }
+
+  const batchMemo = memo ?? 'TSK monthly reward payout (direct)';
+  const syntheticHash = 'direct_' + uuidv4().replace(/-/g, '');
+
+  const batchResult = db.prepare(
+    "INSERT INTO payout_batches (payment_hash, payment_request, total_sats, memo, source, status, paid_at) VALUES (?, '', ?, ?, 'direct', 'paid', unixepoch())"
+  ).run(syntheticHash, totalSats, batchMemo);
+
+  const batchId = batchResult.lastInsertRowid as number;
+  const insertItem = db.prepare(
+    'INSERT INTO payout_batch_items (batch_id, user_id, amount_sats, description, payout_type, ln_address) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  for (const p of payouts) {
+    insertItem.run(batchId, p.user_id, p.amount_sats, p.description ?? null, p.payout_type ?? 'internal', p.ln_address ?? null);
+  }
+
+  // Credit internal items immediately
+  db.transaction(() => {
+    for (const p of payouts) {
+      if (p.payout_type === 'ln_address') continue;
+      db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(p.amount_sats, p.user_id);
+      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
+        p.user_id, 'refill', p.amount_sats, p.description ?? 'Monthly reward payout (direct)'
+      );
+      db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(
+        p.user_id, 'credited', `${p.amount_sats} sats — ${batchMemo}`
+      );
+    }
+  })();
+
+  // Fire outbound LN payments async for ln_address items
+  const lnItems = payouts.filter(p => p.payout_type === 'ln_address' && p.ln_address);
+  for (const p of lnItems) {
+    (async () => {
+      let paymentHash: string | null = null;
+      let status = 'failed';
+      try {
+        const pr = await resolveLnAddress(p.ln_address!, p.amount_sats);
+        const payStatus = await payInvoice(pr);
+        if (payStatus === 'SUCCESS' || payStatus === 'ALREADY_PAID') status = 'paid';
+        console.log(`[direct-payout] LN address payout to ${p.ln_address}: ${payStatus}`);
+      } catch (err: any) {
+        console.error(`[direct-payout] LN address payout to ${p.ln_address} failed:`, err.message);
+      }
+      db.prepare(
+        'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(p.user_id, p.amount_sats, p.ln_address, paymentHash, status, p.description ?? 'Monthly reward payout (direct)');
+    })();
+  }
+
+  console.log(`[direct-payout] Batch #${batchId} — credited ${payouts.length - lnItems.length} internal, queued ${lnItems.length} LN address`);
+  res.status(201).json({ batch_id: batchId, total_sats: totalSats, status: 'paid' });
 });
 
 // ── GET /api/v1/payout/batch/:id ──────────────────────────────────────────────

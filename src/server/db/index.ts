@@ -75,6 +75,15 @@ db.exec(`
   )
 `);
 
+// Migrations for payout_batches
+const batchCols = (db.prepare(`PRAGMA table_info(payout_batches)`).all() as { name: string }[]).map(c => c.name);
+if (!batchCols.includes('source')) {
+  db.exec("ALTER TABLE payout_batches ADD COLUMN source TEXT NOT NULL DEFAULT 'invoice'");
+}
+if (!batchCols.includes('invoice_sats')) {
+  db.exec('ALTER TABLE payout_batches ADD COLUMN invoice_sats INTEGER');
+}
+
 // Migrations for payout_batch_items
 const batchItemCols = (db.prepare(`PRAGMA table_info(payout_batch_items)`).all() as { name: string }[]).map(c => c.name);
 if (!batchItemCols.includes('payout_type')) {
