@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 const _MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function fmtDate(unix: number) {
   const d = new Date(unix * 1000);
-  return `${String(d.getDate()).padStart(2,"0")} ${_MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
+  const time = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `${String(d.getDate()).padStart(2,"0")} ${_MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)} ${time}`;
 }
 import { useParams } from 'react-router-dom';
 import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';

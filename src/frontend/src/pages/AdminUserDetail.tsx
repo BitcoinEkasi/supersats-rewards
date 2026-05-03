@@ -49,7 +49,8 @@ interface UserDetail {
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function formatTs(unix: number) {
   const d = new Date(unix * 1000);
-  return `${String(d.getDate()).padStart(2,"0")} ${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
+  const time = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `${String(d.getDate()).padStart(2,"0")} ${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)} ${time}`;
 }
 
 export default function AdminUserDetail() {
