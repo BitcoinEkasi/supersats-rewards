@@ -62,7 +62,7 @@ export default function BalanceCheckView() {
   const [errorMsg, setErrorMsg] = useState('');
   const readerRef = useRef<any>(null);
 
-  async function startScan() {
+  async function startScan(autoTriggered = false) {
     setState('scanning');
     setResult(null);
     setErrorMsg('');
@@ -116,8 +116,12 @@ export default function BalanceCheckView() {
       await reader.scan();
     } catch (err: any) {
       if (err?.name === 'NotAllowedError') {
-        setErrorMsg('NFC permission denied. Please check that NFC is enabled in your phone settings and try again.');
-        setState('error');
+        if (autoTriggered) {
+          setState('idle');
+        } else {
+          setErrorMsg('NFC permission denied. Please check that NFC is enabled in your phone settings and try again.');
+          setState('error');
+        }
       } else {
         setState('unsupported');
       }
@@ -125,6 +129,7 @@ export default function BalanceCheckView() {
   }
 
   useEffect(() => {
+    if ('NDEFReader' in window) startScan(true);
     return () => { readerRef.current = null; };
   }, []);
 
