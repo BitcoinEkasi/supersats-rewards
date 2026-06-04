@@ -149,8 +149,8 @@ export default function BalancesView() {
       </div>
 
       {/* Search + Group filter */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        <div style={{ position: 'relative' }}>
           <input
             type="text"
             placeholder="Search by name…"
@@ -168,7 +168,7 @@ export default function BalancesView() {
         <select
           value={groupFilter}
           onChange={e => setGroupFilter(e.target.value)}
-          style={{ background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '10px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
+          style={{ width: '100%', background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '10px 12px', fontSize: 14, cursor: 'pointer', boxSizing: 'border-box' }}
         >
           {TSK_GROUPS.map((g) => (
             <option key={g.value} value={g.value}>{g.label}</option>

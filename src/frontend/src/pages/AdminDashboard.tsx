@@ -211,12 +211,12 @@ export default function AdminDashboard() {
               placeholder="Search by username or name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ flex: 1 }}
+              style={{ flex: 3 }}
             />
             <select
               value={groupFilter}
               onChange={(e) => setGroupFilter(e.target.value)}
-              style={{ background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
+              style={{ flex: 1, background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
             >
               {TSK_GROUPS.map((g) => (
                 <option key={g.value} value={g.value}>{g.label}</option>
