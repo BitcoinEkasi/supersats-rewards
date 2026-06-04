@@ -14,7 +14,19 @@ interface UserRow {
   card_enabled: number | null;
   wiped_at: number | null;
   setup_token: string | null;
+  tsk_group: string | null;
+  ac: boolean;
 }
+
+const TSK_GROUPS = [
+  { value: '', label: 'All' },
+  { value: 'TURTLES', label: 'Turtles' },
+  { value: 'SEALS', label: 'Seals' },
+  { value: 'DOLPHINS', label: 'Dolphins' },
+  { value: 'SHARKS', label: 'Sharks' },
+  { value: 'FREE_SURFERS', label: 'Free Surfers' },
+  { value: '__AC__', label: 'Assistant Coaches' },
+];
 
 interface BlinkTx {
   id: string;
@@ -46,6 +58,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [systemBalance, setSystemBalance] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [groupFilter, setGroupFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
@@ -116,7 +129,10 @@ export default function AdminDashboard() {
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
-    return !q || u.username.includes(q) || u.display_name.toLowerCase().includes(q);
+    if (q && !u.username.includes(q) && !u.display_name.toLowerCase().includes(q)) return false;
+    if (groupFilter === '__AC__') return u.ac;
+    if (groupFilter) return u.tsk_group === groupFilter;
+    return true;
   });
 
   const totalUserBalance = users.reduce((s, u) => s + u.balance_sats, 0);
@@ -190,12 +206,23 @@ export default function AdminDashboard() {
             <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
           </div>
 
-          <input
-            placeholder="Search by username or name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ marginBottom: 12, width: '100%' }}
-          />
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="Search by username or name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              style={{ background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
+            >
+              {TSK_GROUPS.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
 
           {showCreate && (
             <div className="card" style={{ marginBottom: 16 }}>

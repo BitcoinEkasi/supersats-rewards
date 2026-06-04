@@ -12,7 +12,19 @@ interface UserBalance {
   division: string | null;
   tsk_level: string | null;
   jc_level: number | null;
+  tsk_group: string | null;
+  ac: boolean;
 }
+
+const TSK_GROUPS = [
+  { value: '', label: 'All' },
+  { value: 'TURTLES', label: 'Turtles' },
+  { value: 'SEALS', label: 'Seals' },
+  { value: 'DOLPHINS', label: 'Dolphins' },
+  { value: 'SHARKS', label: 'Sharks' },
+  { value: 'FREE_SURFERS', label: 'Free Surfers' },
+  { value: '__AC__', label: 'Assistant Coaches' },
+];
 
 interface Transaction {
   id: number | string;
@@ -56,6 +68,7 @@ export default function BalancesView() {
   const [error, setError] = useState('');
   const [users, setUsers] = useState<UserBalance[] | null>(null);
   const [search, setSearch] = useState('');
+  const [groupFilter, setGroupFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<UserDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -119,9 +132,12 @@ export default function BalancesView() {
   }
 
   const active = users.filter(u => u.card_status === 'active');
-  const filtered = active.filter(u =>
-    u.display_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = active.filter(u => {
+    if (!u.display_name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (groupFilter === '__AC__') return u.ac;
+    if (groupFilter) return u.tsk_group === groupFilter;
+    return true;
+  });
 
   return (
     <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 12px 40px' }}>
@@ -132,21 +148,32 @@ export default function BalancesView() {
         <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{active.length} participants</span>
       </div>
 
-      {/* Search */}
-      <div style={{ position: 'relative', marginBottom: 12 }}>
-        <input
-          type="text"
-          placeholder="Search by name…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: '100%', fontSize: 15, padding: '10px 36px 10px 12px', boxSizing: 'border-box' }}
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, lineHeight: 1, padding: 4 }}
-          >×</button>
-        )}
+      {/* Search + Group filter */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <input
+            type="text"
+            placeholder="Search by name…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', fontSize: 15, padding: '10px 36px 10px 12px', boxSizing: 'border-box' }}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, lineHeight: 1, padding: 4 }}
+            >×</button>
+          )}
+        </div>
+        <select
+          value={groupFilter}
+          onChange={e => setGroupFilter(e.target.value)}
+          style={{ background: '#1a1a1a', color: '#f0f0f0', border: '1px solid #333', borderRadius: 6, padding: '10px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
+        >
+          {TSK_GROUPS.map((g) => (
+            <option key={g.value} value={g.value}>{g.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* List */}

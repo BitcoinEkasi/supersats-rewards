@@ -22,6 +22,12 @@ if (!userColumns.includes('tsk_level')) {
 if (!userColumns.includes('jc_level')) {
   db.exec('ALTER TABLE users ADD COLUMN jc_level INTEGER');
 }
+if (!userColumns.includes('tsk_group')) {
+  db.exec('ALTER TABLE users ADD COLUMN tsk_group TEXT');
+}
+if (!userColumns.includes('ac')) {
+  db.exec('ALTER TABLE users ADD COLUMN ac INTEGER NOT NULL DEFAULT 0');
+}
 
 const cardColumns = (db.prepare(`PRAGMA table_info(cards)`).all() as { name: string }[]).map(c => c.name);
 if (!cardColumns.includes('card_id')) {

@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(`
     SELECT u.id, u.display_name, u.username, u.balance_sats,
-           u.division, u.tsk_level, u.jc_level,
+           u.division, u.tsk_level, u.jc_level, u.tsk_group, u.ac,
            c.card_id, c.programmed_at, c.enabled, c.setup_token, c.wiped_at
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
@@ -43,6 +43,8 @@ router.get('/', (req, res) => {
       division: r.division ?? null,
       tsk_level: r.tsk_level ?? null,
       jc_level: r.jc_level ?? null,
+      tsk_group: r.tsk_group ?? null,
+      ac: !!r.ac,
     };
   });
 

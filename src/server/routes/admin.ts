@@ -18,6 +18,7 @@ const DOMAIN = () => process.env.DOMAIN!;
 router.get('/dashboard', async (_req, res) => {
   const users = db.prepare(`
     SELECT u.id, u.username, u.display_name, u.balance_sats, u.ln_payout_address, u.created_at,
+           u.tsk_group, u.ac,
            c.id AS card_id, c.card_id AS card_number, c.programmed_at, c.enabled AS card_enabled, c.uid,
            c.wiped_at, c.setup_token
     FROM users u

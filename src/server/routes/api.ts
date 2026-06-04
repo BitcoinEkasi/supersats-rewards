@@ -108,12 +108,14 @@ router.get('/users/:id', (req, res) => {
 
 router.patch('/users/:id', (req, res) => {
   const userId = Number(req.params.id);
-  const { ln_payout_address, display_name, division, tsk_level, jc_level } = req.body as {
+  const { ln_payout_address, display_name, division, tsk_level, jc_level, tsk_group, ac } = req.body as {
     ln_payout_address?: string | null;
     display_name?: string;
     division?: string | null;
     tsk_level?: string | null;
     jc_level?: number | null;
+    tsk_group?: string | null;
+    ac?: boolean | null;
   };
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
@@ -122,6 +124,8 @@ router.patch('/users/:id', (req, res) => {
   if (division !== undefined) db.prepare('UPDATE users SET division = ? WHERE id = ?').run(division ?? null, userId);
   if (tsk_level !== undefined) db.prepare('UPDATE users SET tsk_level = ? WHERE id = ?').run(tsk_level ?? null, userId);
   if (jc_level !== undefined) db.prepare('UPDATE users SET jc_level = ? WHERE id = ?').run(jc_level ?? null, userId);
+  if (tsk_group !== undefined) db.prepare('UPDATE users SET tsk_group = ? WHERE id = ?').run(tsk_group ?? null, userId);
+  if (ac !== undefined) db.prepare('UPDATE users SET ac = ? WHERE id = ?').run(ac ? 1 : 0, userId);
   res.json({ success: true });
 });
 
