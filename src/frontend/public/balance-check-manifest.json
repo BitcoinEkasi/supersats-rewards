@@ -1,6 +1,6 @@
 {
-  "name": "Card Check",
-  "short_name": "Card Check",
+  "name": "TSK Bolt Check",
+  "short_name": "TSK Bolt Check",
   "description": "NFC BoltCard balance reader",
   "start_url": "/balance_check",
   "scope": "/balance_check",
