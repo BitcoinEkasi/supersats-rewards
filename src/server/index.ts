@@ -155,13 +155,15 @@ if (isProd) {
   // Return 404 for missing asset files (prevents stale-cache HTML-as-JS errors)
   app.get('/assets/:file', (_req, res) => { res.status(404).end(); });
 
-  // PWA routes — inject manifest link into HTML so Chrome detects it at parse time
+  // PWA routes — inject manifest + SW registration into HTML at parse time
   const indexHtml = readFileSync(path.join(distPath, 'index.html'), 'utf8');
-  const pwaRoutes: Record<string, string> = {
-    '/balances':      indexHtml.replace('</head>', '<link rel="manifest" href="/balances-manifest.json"></head>'),
-    '/balance_check': indexHtml.replace('</head>', '<link rel="manifest" href="/balance-check-manifest.json"></head>'),
+  const pwaRoutes: Record<string, { manifest: string; sw: string; scope: string }> = {
+    '/balances':      { manifest: '/balances-manifest.json',      sw: '/balances-sw.js',      scope: '/balances' },
+    '/balance_check': { manifest: '/balance-check-manifest.json', sw: '/balance-check-sw.js', scope: '/balance_check' },
   };
-  for (const [route, html] of Object.entries(pwaRoutes)) {
+  for (const [route, pwa] of Object.entries(pwaRoutes)) {
+    const injection = `<link rel="manifest" href="${pwa.manifest}"><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('${pwa.sw}',{scope:'${pwa.scope}'});</script>`;
+    const html = indexHtml.replace('</head>', injection + '</head>');
     app.get(route, (_req, res) => { res.type('html').send(html); });
   }
 
