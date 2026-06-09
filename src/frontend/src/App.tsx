@@ -6,10 +6,12 @@ import UserView from './pages/UserView';
 import BalancesView from './pages/BalancesView';
 import BalanceCheckView from './pages/BalanceCheckView';
 import ProtectedRoute from './components/ProtectedRoute';
+import PwaHead from './components/PwaHead';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <PwaHead />
       <Routes>
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />

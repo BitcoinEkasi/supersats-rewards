@@ -1,0 +1,15 @@
+{
+  "name": "Card Check",
+  "short_name": "Card Check",
+  "description": "NFC BoltCard balance reader",
+  "start_url": "/balance_check",
+  "scope": "/balance_check",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#f7931a",
+  "background_color": "#0f0f0f",
+  "icons": [
+    { "src": "/icons/card-check-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/card-check-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+  ]
+}

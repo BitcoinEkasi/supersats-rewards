@@ -1,0 +1,15 @@
+{
+  "name": "TSK Balances",
+  "short_name": "TSK Balances",
+  "description": "View TSK participant sats balances",
+  "start_url": "/balances",
+  "scope": "/balances",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#f7931a",
+  "background_color": "#0f0f0f",
+  "icons": [
+    { "src": "/icons/balances-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/balances-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+  ]
+}
