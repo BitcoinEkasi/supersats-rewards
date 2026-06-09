@@ -152,14 +152,15 @@ export default function BalanceCheckView() {
 
   if (state === 'idle') {
     return (
-      <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div
+        onClick={startScan}
+        style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'pointer', userSelect: 'none' }}
+      >
         <div style={{ textAlign: 'center', maxWidth: 320 }}>
           <div style={{ fontSize: 72, marginBottom: 20 }}>💳</div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f0f0f0', marginBottom: 8 }}>Card Balance Check</h1>
-          <p className="muted" style={{ fontSize: 14, marginBottom: 28 }}>Press the button below, then hold your BoltCard to the back of your phone</p>
-          <button className="btn-primary" onClick={startScan} style={{ width: '100%', padding: '13px 0', fontSize: 16 }}>
-            Start Scanning
-          </button>
+          <p className="muted" style={{ fontSize: 14, marginBottom: 28 }}>Tap anywhere, then hold your BoltCard to the back of your phone</p>
+          <div style={{ color: '#f7931a', fontSize: 14, fontWeight: 600, opacity: 0.8 }}>Tap to start scanning</div>
         </div>
       </div>
     );
