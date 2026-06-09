@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 
@@ -153,6 +154,17 @@ if (isProd) {
   app.use(express.static(distPath));
   // Return 404 for missing asset files (prevents stale-cache HTML-as-JS errors)
   app.get('/assets/:file', (_req, res) => { res.status(404).end(); });
+
+  // PWA routes — inject manifest link into HTML so Chrome detects it at parse time
+  const indexHtml = readFileSync(path.join(distPath, 'index.html'), 'utf8');
+  const pwaRoutes: Record<string, string> = {
+    '/balances':      indexHtml.replace('</head>', '<link rel="manifest" href="/balances-manifest.json"></head>'),
+    '/balance_check': indexHtml.replace('</head>', '<link rel="manifest" href="/balance-check-manifest.json"></head>'),
+  };
+  for (const [route, html] of Object.entries(pwaRoutes)) {
+    app.get(route, (_req, res) => { res.type('html').send(html); });
+  }
+
   // SPA fallback — serve index.html for all non-API routes
   app.get(/^(?!\/api|\/lnurlw|\/lnurlp|\/.well-known).*/, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
