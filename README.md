@@ -87,6 +87,33 @@ Authorization: Bearer <BOLT_API_KEY>
 
 All other endpoints follow LNURL protocol specs.
 
+## Progressive Web Apps (PWAs)
+
+Two pages are installable as PWAs on Android via Chrome — no app store required.
+
+### Balances PWA (`/balances`)
+
+Shows all participant card balances in a scrollable list with per-participant transaction history. Protected by a passcode set via the `BALANCES_PASSCODE` env var.
+
+Visit `yourdomain.com/balances` on Android Chrome and tap **Add to Home Screen**. Requires the passcode on first open; the session is remembered until the browser session ends.
+
+### Card Check PWA (`/balance_check`)
+
+Tap an NFC BoltCard to instantly see its balance and recent transactions. Requires a device with NFC and Chrome on Android. No authentication — physical card access is the gate.
+
+Visit `yourdomain.com/balance_check` on Android Chrome and tap **Add to Home Screen**.
+
+> **NFC requirement:** The Web NFC API is only available in Chrome on Android. The page shows an "unsupported" message on other browsers/platforms.
+
+### Customising names and icons
+
+Edit the manifests in `src/frontend/public/` and replace the icons in `src/frontend/public/icons/` with your own 192×192 and 512×512 PNGs:
+
+| PWA | Manifest | Icons |
+|---|---|---|
+| Balances | `balances-manifest.json` | `balances-192.png`, `balances-512.png` |
+| Card Check | `balance-check-manifest.json` | `card-check-192.png`, `card-check-512.png` |
+
 ## Companion project
 
 Card balances are loaded by the **[supersats-attendance](https://github.com/BitcoinEkasi/supersats-attendance)** app, which generates monthly reports and calls this server's batch payout API at approval time.

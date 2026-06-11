@@ -1,7 +1,7 @@
 {
-  "name": "TSK Bolt Balances",
-  "short_name": "TSK Bolt Balances",
-  "description": "View TSK participant sats balances",
+  "name": "Balances",
+  "short_name": "Balances",
+  "description": "View participant sats balances",
   "start_url": "/balances",
   "scope": "/balances",
   "display": "standalone",
