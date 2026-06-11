@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 
 const router = Router();
 
-const PASSCODE = 'tskbolt';
+const PASSCODE = process.env.BALANCES_PASSCODE ?? '';
 
 function checkPasscode(req: any, res: any): boolean {
   if (req.headers['x-passcode'] !== PASSCODE) {
