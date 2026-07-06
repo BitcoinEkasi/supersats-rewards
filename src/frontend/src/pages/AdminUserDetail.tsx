@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';
+import { formatTs } from '../lib/time';
+import MovementsTable, { type Movement } from '../components/MovementsTable';
 
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('admin_token')}` };
@@ -30,27 +32,13 @@ interface UserDetail {
     replaced_at: number | null;
     enabled: number;
   } | null;
-  transactions: {
-    id: number;
-    type: 'spend' | 'refill' | 'ln_payout';
-    amount_sats: number;
-    description: string | null;
-    status?: string;
-    created_at: number;
-  }[];
+  transactions: Movement[];
   cardEvents: {
     id: number;
     event: string;
     description: string | null;
     created_at: number;
   }[];
-}
-
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function formatTs(unix: number) {
-  const d = new Date(unix * 1000);
-  const time = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
-  return `${String(d.getDate()).padStart(2,"0")} ${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)} ${time}`;
 }
 
 export default function AdminUserDetail() {
@@ -692,44 +680,7 @@ export default function AdminUserDetail() {
         {user.transactions.length === 0 ? (
           <p className="muted">No transactions yet.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Description</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {user.transactions.map((tx) => (
-                <tr key={`${tx.type}-${tx.id}`}>
-                  <td>
-                    {tx.type === 'ln_payout' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, color: tx.status === 'failed' ? '#dc2626' : '#16a34a' }} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        <span style={{ fontSize: 12, color: tx.status === 'failed' ? '#dc2626' : '#16a34a', fontWeight: 500 }}>
-                          LN {tx.status === 'failed' ? 'failed' : 'sent'}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
-                        {tx.type === 'refill' ? '↓ refill' : tx.type === 'card_fee' ? '⚠ card fee' : '↑ spend'}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {tx.amount_sats.toLocaleString()} sats
-                    {zarPerSat && <span className="muted" style={{ marginLeft: 6 }}>({formatZAR(tx.amount_sats, zarPerSat)})</span>}
-                  </td>
-                  <td className="muted">{tx.description ?? '—'}</td>
-                  <td className="muted">{formatTs(tx.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <MovementsTable movements={user.transactions} zarPerSat={zarPerSat} />
         )}
       </div>
 

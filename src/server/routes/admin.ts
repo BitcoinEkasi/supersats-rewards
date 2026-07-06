@@ -65,6 +65,54 @@ async function blinkCounterPartyByPaymentHash(maxPages = 4): Promise<Map<string,
   return map;
 }
 
+interface Movement {
+  id: string;
+  created_at: number;
+  type: 'spend' | 'refill' | 'card_fee' | 'ln_payout';
+  direction: 'in' | 'out';
+  amount_sats: number;
+  from: string;
+  to: string;
+  description: string | null;
+}
+
+function txToMovement(
+  t: { id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number; payment_hash: string | null; description: string | null; created_at: number },
+  cardLabel: string,
+  blinkCounterParties: Map<string, string>
+): Movement {
+  if (t.type === 'spend') {
+    const resolved = t.payment_hash ? blinkCounterParties.get(t.payment_hash) : undefined;
+    return {
+      id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
+      amount_sats: t.amount_sats, from: cardLabel, to: resolved ?? 'Lightning (external)', description: t.description,
+    };
+  }
+  if (t.type === 'card_fee') {
+    return {
+      id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
+      amount_sats: t.amount_sats, from: cardLabel, to: 'System (card fee)', description: t.description,
+    };
+  }
+  return {
+    id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'in',
+    amount_sats: t.amount_sats, from: `Reserve — ${t.description ?? 'credit'}`, to: cardLabel, description: t.description,
+  };
+}
+
+function lnPayoutToMovement(
+  p: { id: number; amount_sats: number; ln_address: string; status: string; description: string | null; created_at: number },
+  displayName: string
+): Movement {
+  return {
+    id: `ln-${p.id}`, created_at: p.created_at, type: 'ln_payout', direction: 'out',
+    amount_sats: p.amount_sats,
+    from: `Reserve — ${p.description ?? 'payout'}`,
+    to: `${p.ln_address} — ${displayName}`,
+    description: p.status !== 'paid' ? `[${p.status}]${p.description ? ' ' + p.description : ''}` : p.description,
+  };
+}
+
 // ── Internal movements (from/to across cards, reserve, and LN addresses) ──────
 
 router.get('/movements', async (_req, res) => {
@@ -104,33 +152,8 @@ router.get('/movements', async (_req, res) => {
   }[];
 
   const movements = [
-    ...txRows.map((t) => {
-      const cardLabel = `Card ${t.card_number ?? '?'} — ${t.display_name}`;
-      if (t.type === 'spend') {
-        const resolved = t.payment_hash ? blinkCounterParties.get(t.payment_hash) : undefined;
-        return {
-          id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out' as const,
-          amount_sats: t.amount_sats, from: cardLabel, to: resolved ?? 'Lightning (external)', description: t.description,
-        };
-      }
-      if (t.type === 'card_fee') {
-        return {
-          id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out' as const,
-          amount_sats: t.amount_sats, from: cardLabel, to: 'System (card fee)', description: t.description,
-        };
-      }
-      return {
-        id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'in' as const,
-        amount_sats: t.amount_sats, from: `Reserve — ${t.description ?? 'credit'}`, to: cardLabel, description: t.description,
-      };
-    }),
-    ...lnPayoutRows.map((p) => ({
-      id: `ln-${p.id}`, created_at: p.created_at, type: 'ln_payout' as const, direction: 'out' as const,
-      amount_sats: p.amount_sats,
-      from: `Reserve — ${p.description ?? 'payout'}`,
-      to: `${p.ln_address} — ${p.display_name}`,
-      description: p.status !== 'paid' ? `[${p.status}]${p.description ? ' ' + p.description : ''}` : p.description,
-    })),
+    ...txRows.map((t) => txToMovement(t, `Card ${t.card_number ?? '?'} — ${t.display_name}`, blinkCounterParties)),
+    ...lnPayoutRows.map((p) => lnPayoutToMovement(p, p.display_name)),
   ]
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, 300);
@@ -178,7 +201,7 @@ router.post('/users', (req, res) => {
   }
 });
 
-router.get('/users/:id', (req, res) => {
+router.get('/users/:id', async (req, res) => {
   const userId = Number(req.params.id);
   const user = db
     .prepare('SELECT * FROM users WHERE id = ?')
@@ -191,14 +214,35 @@ router.get('/users/:id', (req, res) => {
     .get(userId) as any;
 
   const txRows = db
-    .prepare('SELECT id, type, amount_sats, description, null AS status, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
-    .all(userId) as any[];
+    .prepare('SELECT id, type, amount_sats, payment_hash, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+    .all(userId) as {
+      id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+      payment_hash: string | null; description: string | null; created_at: number;
+    }[];
+
+  let blinkCounterParties = new Map<string, string>();
+  if (txRows.some((t) => t.type === 'spend' && t.payment_hash)) {
+    try {
+      blinkCounterParties = await blinkCounterPartyByPaymentHash();
+    } catch (err) {
+      console.error('[admin] user detail: failed to fetch Blink counterparties:', err);
+    }
+  }
 
   const lnRows = db
-    .prepare("SELECT id, 'ln_payout' AS type, amount_sats, description, status, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")
-    .all(userId) as any[];
+    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+    .all(userId) as {
+      id: number; amount_sats: number; ln_address: string; status: string;
+      description: string | null; created_at: number;
+    }[];
 
-  const transactions = [...txRows, ...lnRows].sort((a, b) => b.created_at - a.created_at).slice(0, 50);
+  const cardLabel = `Card ${card?.card_id ?? '?'} — ${user.display_name}`;
+  const transactions = [
+    ...txRows.map((t) => txToMovement(t, cardLabel, blinkCounterParties)),
+    ...lnRows.map((p) => lnPayoutToMovement(p, user.display_name)),
+  ]
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 50);
 
   const cardEvents = db
     .prepare('SELECT id, event, description, created_at FROM card_events WHERE user_id = ? ORDER BY created_at DESC')
