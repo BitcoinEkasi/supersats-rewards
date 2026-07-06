@@ -45,6 +45,69 @@ router.get('/blink-transactions', async (_req, res) => {
   }
 });
 
+// ── Internal movements (from/to across cards, reserve, and LN addresses) ──────
+
+router.get('/movements', (_req, res) => {
+  const txRows = db.prepare(`
+    SELECT t.id, t.type, t.amount_sats, t.description, t.created_at,
+           u.display_name, c.card_id AS card_number
+    FROM transactions t
+    JOIN users u ON u.id = t.user_id
+    LEFT JOIN cards c ON c.user_id = u.id
+    ORDER BY t.created_at DESC
+    LIMIT 300
+  `).all() as {
+    id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+    description: string | null; created_at: number;
+    display_name: string; card_number: string | null;
+  }[];
+
+  const lnPayoutRows = db.prepare(`
+    SELECT lp.id, lp.amount_sats, lp.ln_address, lp.status, lp.description, lp.created_at,
+           u.display_name
+    FROM ln_payouts lp
+    JOIN users u ON u.id = lp.user_id
+    ORDER BY lp.created_at DESC
+    LIMIT 300
+  `).all() as {
+    id: number; amount_sats: number; ln_address: string; status: string;
+    description: string | null; created_at: number; display_name: string;
+  }[];
+
+  const movements = [
+    ...txRows.map((t) => {
+      const cardLabel = `Card ${t.card_number ?? '?'} — ${t.display_name}`;
+      if (t.type === 'spend') {
+        return {
+          id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out' as const,
+          amount_sats: t.amount_sats, from: cardLabel, to: 'Lightning (external)', description: t.description,
+        };
+      }
+      if (t.type === 'card_fee') {
+        return {
+          id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out' as const,
+          amount_sats: t.amount_sats, from: cardLabel, to: 'System (card fee)', description: t.description,
+        };
+      }
+      return {
+        id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'in' as const,
+        amount_sats: t.amount_sats, from: `Reserve — ${t.description ?? 'credit'}`, to: cardLabel, description: t.description,
+      };
+    }),
+    ...lnPayoutRows.map((p) => ({
+      id: `ln-${p.id}`, created_at: p.created_at, type: 'ln_payout' as const, direction: 'out' as const,
+      amount_sats: p.amount_sats,
+      from: `Reserve — ${p.description ?? 'payout'}`,
+      to: `${p.ln_address} — ${p.display_name}`,
+      description: p.status !== 'paid' ? `[${p.status}]${p.description ? ' ' + p.description : ''}` : p.description,
+    })),
+  ]
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 300);
+
+  res.json(movements);
+});
+
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 router.post('/users', (req, res) => {
