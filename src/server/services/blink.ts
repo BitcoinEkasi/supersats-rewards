@@ -148,11 +148,18 @@ interface TxData {
       wallets: {
         id: string;
         transactions: {
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
           edges: { node: RawTxNode }[];
         };
       }[];
     };
   };
+}
+
+export interface BlinkTxPage {
+  transactions: BlinkTx[];
+  hasNextPage: boolean;
+  endCursor: string | null;
 }
 
 function extractCounterParty(node: RawTxNode): string | null {
@@ -175,14 +182,15 @@ function extractCounterParty(node: RawTxNode): string | null {
   return null;
 }
 
-export async function getTransactions(first = 50): Promise<BlinkTx[]> {
+export async function getTransactions(first = 50, after?: string): Promise<BlinkTxPage> {
   const data = await gql<TxData>(
-    `query GetTransactions {
+    `query GetTransactions($first: Int!, $after: String) {
       me {
         defaultAccount {
           wallets {
             id
-            transactions(first: ${first}) {
+            transactions(first: $first, after: $after) {
+              pageInfo { hasNextPage endCursor }
               edges {
                 node {
                   id
@@ -209,15 +217,20 @@ export async function getTransactions(first = 50): Promise<BlinkTx[]> {
           }
         }
       }
-    }`
+    }`,
+    { first, after: after ?? null }
   );
   const wallet = data.me.defaultAccount.wallets.find(
     (w) => w.id === WALLET_ID
   );
-  return (wallet?.transactions.edges.map((e) => ({
-    ...e.node,
-    counterParty: extractCounterParty(e.node),
-  })) ?? []);
+  return {
+    transactions: wallet?.transactions.edges.map((e) => ({
+      ...e.node,
+      counterParty: extractCounterParty(e.node),
+    })) ?? [],
+    hasNextPage: wallet?.transactions.pageInfo.hasNextPage ?? false,
+    endCursor: wallet?.transactions.pageInfo.endCursor ?? null,
+  };
 }
 
 // ── WebSocket subscription ────────────────────────────────────────────────────

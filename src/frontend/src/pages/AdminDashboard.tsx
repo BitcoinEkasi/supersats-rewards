@@ -79,6 +79,9 @@ export default function AdminDashboard() {
   const [blinkTxs, setBlinkTxs] = useState<BlinkTx[] | null>(null);
   const [blinkError, setBlinkError] = useState('');
   const [blinkLoading, setBlinkLoading] = useState(false);
+  const [blinkLoadingMore, setBlinkLoadingMore] = useState(false);
+  const [blinkCursor, setBlinkCursor] = useState<string | null>(null);
+  const [blinkHasMore, setBlinkHasMore] = useState(false);
   const [movements, setMovements] = useState<Movement[] | null>(null);
   const [movementsError, setMovementsError] = useState('');
   const [movementsLoading, setMovementsLoading] = useState(false);
@@ -97,11 +100,31 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/blink-transactions', { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok) { setBlinkError(data.error ?? 'Failed to load'); return; }
-      setBlinkTxs(data);
+      setBlinkTxs(data.transactions);
+      setBlinkCursor(data.endCursor);
+      setBlinkHasMore(data.hasNextPage);
     } catch {
       setBlinkError('Network error');
     } finally {
       setBlinkLoading(false);
+    }
+  }
+
+  async function loadMoreBlinkTxs() {
+    if (!blinkCursor) return;
+    setBlinkLoadingMore(true);
+    setBlinkError('');
+    try {
+      const res = await fetch(`/api/admin/blink-transactions?after=${encodeURIComponent(blinkCursor)}`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) { setBlinkError(data.error ?? 'Failed to load'); return; }
+      setBlinkTxs((prev) => [...(prev ?? []), ...data.transactions]);
+      setBlinkCursor(data.endCursor);
+      setBlinkHasMore(data.hasNextPage);
+    } catch {
+      setBlinkError('Network error');
+    } finally {
+      setBlinkLoadingMore(false);
     }
   }
 
@@ -469,6 +492,13 @@ export default function AdminDashboard() {
                   )}
                 </tbody>
               </table>
+            )}
+            {blinkTxs && !blinkLoading && blinkHasMore && (
+              <div style={{ textAlign: 'center', padding: 12 }}>
+                <button className="btn-ghost" style={{ fontSize: 12 }} onClick={loadMoreBlinkTxs} disabled={blinkLoadingMore}>
+                  {blinkLoadingMore ? 'Loading…' : '↓ Load older'}
+                </button>
+              </div>
             )}
           </div>
         </>

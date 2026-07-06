@@ -36,10 +36,11 @@ router.get('/dashboard', async (_req, res) => {
   res.json({ users, systemBalance });
 });
 
-router.get('/blink-transactions', async (_req, res) => {
+router.get('/blink-transactions', async (req, res) => {
+  const after = typeof req.query.after === 'string' ? req.query.after : undefined;
   try {
-    const txs = await getTransactions(50);
-    res.json(txs);
+    const page = await getTransactions(50, after);
+    res.json(page);
   } catch (err: any) {
     res.status(502).json({ error: err.message });
   }
