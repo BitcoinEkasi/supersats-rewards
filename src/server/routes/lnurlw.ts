@@ -191,8 +191,13 @@ router.get('/callback', async (req, res) => {
 
   // Decode invoice to check amount
   let invoiceAmountSats: number;
+  let paymentHash: string | null;
   try {
-    const decoded = bolt11.decode(pr) as { satoshis?: number; millisatoshis?: string };
+    const decoded = bolt11.decode(pr) as {
+      satoshis?: number;
+      millisatoshis?: string;
+      tagsObject: { payment_hash?: string };
+    };
     if (decoded.satoshis != null) {
       invoiceAmountSats = decoded.satoshis;
     } else if (decoded.millisatoshis != null) {
@@ -201,6 +206,7 @@ router.get('/callback', async (req, res) => {
       res.json({ status: 'ERROR', reason: 'Invoice has no amount' });
       return;
     }
+    paymentHash = decoded.tagsObject.payment_hash ?? null;
   } catch {
     res.json({ status: 'ERROR', reason: 'Invalid invoice' });
     return;
@@ -252,8 +258,8 @@ router.get('/callback', async (req, res) => {
       user.id
     );
     db.prepare(
-      'INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)'
-    ).run(user.id, 'spend', invoiceAmountSats, 'BoltCard payment');
+      'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description) VALUES (?, ?, ?, ?, ?)'
+    ).run(user.id, 'spend', invoiceAmountSats, paymentHash, 'BoltCard payment');
     db.prepare(
       'UPDATE cards SET day_spent_sats = day_spent_sats + ? WHERE id = ?'
     ).run(invoiceAmountSats, pending.card_id);

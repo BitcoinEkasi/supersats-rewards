@@ -119,6 +119,7 @@ export interface BlinkTx {
   settlementFee: number;
   createdAt: number;
   counterParty: string | null;
+  paymentHash: string | null;
 }
 
 interface RawTxNode {
@@ -227,6 +228,7 @@ export async function getTransactions(first = 50, after?: string): Promise<Blink
     transactions: wallet?.transactions.edges.map((e) => ({
       ...e.node,
       counterParty: extractCounterParty(e.node),
+      paymentHash: e.node.initiationVia.paymentHash ?? null,
     })) ?? [],
     hasNextPage: wallet?.transactions.pageInfo.hasNextPage ?? false,
     endCursor: wallet?.transactions.pageInfo.endCursor ?? null,

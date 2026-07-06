@@ -46,11 +46,30 @@ router.get('/blink-transactions', async (req, res) => {
   }
 });
 
+// Look up Blink's own resolved counterparty (username / on-chain address) for
+// spends, by matching the invoice's payment_hash — Blink knows the eventual
+// destination even when it's outside our own card/ln_address bookkeeping.
+async function blinkCounterPartyByPaymentHash(maxPages = 4): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let cursor: string | undefined;
+  for (let i = 0; i < maxPages; i++) {
+    const page = await getTransactions(50, cursor);
+    for (const tx of page.transactions) {
+      if (tx.paymentHash && tx.counterParty) {
+        map.set(tx.paymentHash, tx.counterParty);
+      }
+    }
+    if (!page.hasNextPage || !page.endCursor) break;
+    cursor = page.endCursor;
+  }
+  return map;
+}
+
 // ── Internal movements (from/to across cards, reserve, and LN addresses) ──────
 
-router.get('/movements', (_req, res) => {
+router.get('/movements', async (_req, res) => {
   const txRows = db.prepare(`
-    SELECT t.id, t.type, t.amount_sats, t.description, t.created_at,
+    SELECT t.id, t.type, t.amount_sats, t.payment_hash, t.description, t.created_at,
            u.display_name, c.card_id AS card_number
     FROM transactions t
     JOIN users u ON u.id = t.user_id
@@ -59,9 +78,18 @@ router.get('/movements', (_req, res) => {
     LIMIT 300
   `).all() as {
     id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
-    description: string | null; created_at: number;
+    payment_hash: string | null; description: string | null; created_at: number;
     display_name: string; card_number: string | null;
   }[];
+
+  let blinkCounterParties = new Map<string, string>();
+  if (txRows.some((t) => t.type === 'spend' && t.payment_hash)) {
+    try {
+      blinkCounterParties = await blinkCounterPartyByPaymentHash();
+    } catch (err) {
+      console.error('[admin] movements: failed to fetch Blink counterparties:', err);
+    }
+  }
 
   const lnPayoutRows = db.prepare(`
     SELECT lp.id, lp.amount_sats, lp.ln_address, lp.status, lp.description, lp.created_at,
@@ -79,9 +107,10 @@ router.get('/movements', (_req, res) => {
     ...txRows.map((t) => {
       const cardLabel = `Card ${t.card_number ?? '?'} — ${t.display_name}`;
       if (t.type === 'spend') {
+        const resolved = t.payment_hash ? blinkCounterParties.get(t.payment_hash) : undefined;
         return {
           id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out' as const,
-          amount_sats: t.amount_sats, from: cardLabel, to: 'Lightning (external)', description: t.description,
+          amount_sats: t.amount_sats, from: cardLabel, to: resolved ?? 'Lightning (external)', description: t.description,
         };
       }
       if (t.type === 'card_fee') {
