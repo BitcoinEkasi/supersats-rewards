@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { db } from './db/index.js';
 import { startBlinkSubscription, payInvoice } from './services/blink.js';
 import { resolveLnAddress } from './services/lnurl.js';
+import { getZarPerSat } from './services/zarPrice.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -45,7 +46,9 @@ function seedAdmin() {
 
 // ── Payment received handler ──────────────────────────────────────────────────
 
-function onPaymentReceived(paymentHash: string, amountSats: number) {
+async function onPaymentReceived(paymentHash: string, amountSats: number) {
+  const zarPerSat = await getZarPerSat();
+
   const now = Math.floor(Date.now() / 1000);
   const pending = db
     .prepare('SELECT * FROM pending_refills WHERE payment_hash = ? AND expires_at > ?')
@@ -60,8 +63,8 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
         pending.user_id
       );
       db.prepare(
-        'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description) VALUES (?, ?, ?, ?, ?)'
-      ).run(pending.user_id, 'refill', amountSats, paymentHash, 'LN Address payment');
+        'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(pending.user_id, 'refill', amountSats, paymentHash, 'LN Address payment', zarPerSat);
       db.prepare('DELETE FROM pending_refills WHERE payment_hash = ?').run(paymentHash);
     })();
     console.log(`[payment] Credited ${amountSats} sats to user #${pending.user_id}`);
@@ -84,8 +87,8 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
         if (item.payout_type === 'ln_address') continue; // handled async below
         db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?')
           .run(item.amount_sats, item.user_id);
-        db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)')
-          .run(item.user_id, 'refill', item.amount_sats, item.description ?? 'Monthly reward payout');
+        db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)')
+          .run(item.user_id, 'refill', item.amount_sats, item.description ?? 'Monthly reward payout', zarPerSat);
         db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)')
           .run(item.user_id, 'credited', `${item.amount_sats} sats — ${batch.memo ?? 'Monthly payout'}`);
       }
@@ -110,8 +113,8 @@ function onPaymentReceived(paymentHash: string, amountSats: number) {
           console.error(`[payment] LN address payout to ${item.ln_address} failed:`, err.message);
         }
         db.prepare(
-          'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(item.user_id, item.amount_sats, item.ln_address, paymentHash, status, item.description ?? 'Monthly reward payout');
+          'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(item.user_id, item.amount_sats, item.ln_address, paymentHash, status, item.description ?? 'Monthly reward payout', zarPerSat);
       })();
     }
 

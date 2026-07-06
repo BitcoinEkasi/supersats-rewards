@@ -6,7 +6,8 @@
     "dev": "concurrently \"tsx watch src/server/index.ts\" \"vite --config src/frontend/vite.config.ts\"",
     "build": "vite build --config src/frontend/vite.config.ts && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "setup-admin": "tsx src/server/scripts/setup-admin.ts"
+    "setup-admin": "tsx src/server/scripts/setup-admin.ts",
+    "backfill-zar-rate": "tsx src/server/scripts/backfill-zar-rate.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.1",

@@ -6,6 +6,7 @@ import { requireApiKey } from '../middleware/apiKeyAuth.js';
 import { generateKeys } from '../services/crypto.js';
 import { createInvoice, payInvoice, getBalance } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
+import { getZarPerSat } from '../services/zarPrice.js';
 
 const router = Router();
 router.use(requireApiKey);
@@ -63,11 +64,11 @@ router.get('/users/:id', (req, res) => {
     .get(userId) as any;
 
   const txRows = db
-    .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
+    .prepare('SELECT id, type, amount_sats, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(userId) as any[];
 
   const lnPayoutRows = db
-    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
+    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at, zar_per_sat FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(userId) as any[];
 
   const lnPayoutsMapped = lnPayoutRows.map(r => ({
@@ -77,6 +78,7 @@ router.get('/users/:id', (req, res) => {
     description: r.description ?? r.ln_address,
     status: r.status,
     created_at: r.created_at,
+    zar_per_sat: r.zar_per_sat,
   }));
 
   const transactions = [...txRows, ...lnPayoutsMapped]
@@ -163,7 +165,7 @@ router.delete('/users/:id/card', (req, res) => {
 
 // ── POST /api/v1/users/:id/credit ─────────────────────────────────────────────
 
-router.post('/users/:id/credit', (req, res) => {
+router.post('/users/:id/credit', async (req, res) => {
   const userId = Number(req.params.id);
   const { amount_sats, description } = req.body as {
     amount_sats?: number;
@@ -177,10 +179,11 @@ router.post('/users/:id/credit', (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
+  const zarPerSat = await getZarPerSat();
   db.transaction(() => {
     db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(amount_sats, userId);
-    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
-      userId, 'refill', amount_sats, description ?? 'API credit'
+    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+      userId, 'refill', amount_sats, description ?? 'API credit', zarPerSat
     );
   })();
 
@@ -286,9 +289,10 @@ router.post('/users/:id/ln-payout', async (req, res) => {
     console.error(`[ln-payout] manual send to ${ln_address} failed:`, err.message);
   }
 
+  const zarPerSat = await getZarPerSat();
   db.prepare(
-    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null);
+    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null, zarPerSat);
 
   res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
 });
@@ -365,13 +369,15 @@ router.post('/payout/batch/direct', async (req, res) => {
     insertItem.run(batchId, p.user_id, p.amount_sats, p.description ?? null, p.payout_type ?? 'internal', p.ln_address ?? null);
   }
 
+  const zarPerSat = await getZarPerSat();
+
   // Credit internal items immediately
   db.transaction(() => {
     for (const p of payouts) {
       if (p.payout_type === 'ln_address') continue;
       db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(p.amount_sats, p.user_id);
-      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
-        p.user_id, 'refill', p.amount_sats, p.description ?? 'Monthly reward payout (direct)'
+      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+        p.user_id, 'refill', p.amount_sats, p.description ?? 'Monthly reward payout (direct)', zarPerSat
       );
       db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(
         p.user_id, 'credited', `${p.amount_sats} sats — ${batchMemo}`
@@ -394,8 +400,8 @@ router.post('/payout/batch/direct', async (req, res) => {
         console.error(`[direct-payout] LN address payout to ${p.ln_address} failed:`, err.message);
       }
       db.prepare(
-        'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(p.user_id, p.amount_sats, p.ln_address, paymentHash, status, p.description ?? 'Monthly reward payout (direct)');
+        'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(p.user_id, p.amount_sats, p.ln_address, paymentHash, status, p.description ?? 'Monthly reward payout (direct)', zarPerSat);
     })();
   }
 

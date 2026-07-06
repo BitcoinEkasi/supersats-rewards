@@ -18,6 +18,7 @@ interface Transaction {
   description: string | null;
   status?: string;
   created_at: number;
+  zar_per_sat: number | null;
 }
 
 function txLabel(type: string) {
@@ -256,8 +257,8 @@ export default function BalanceCheckView() {
               <div style={{ fontSize: 14, fontWeight: 700, color: tx.type === 'refill' ? '#4ade80' : '#f0f0f0' }}>
                 {tx.type === 'refill' ? '+' : '-'}{tx.amount_sats.toLocaleString()} sats
               </div>
-              {zarPerSat && (
-                <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatZAR(tx.amount_sats, zarPerSat)}</div>
+              {tx.zar_per_sat != null && (
+                <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatZAR(tx.amount_sats, tx.zar_per_sat)}</div>
               )}
             </div>
           </div>

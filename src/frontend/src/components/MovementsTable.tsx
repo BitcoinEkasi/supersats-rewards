@@ -10,9 +10,10 @@ export interface Movement {
   from: string;
   to: string;
   description: string | null;
+  zar_per_sat: number | null;
 }
 
-export default function MovementsTable({ movements, zarPerSat }: { movements: Movement[]; zarPerSat: number | null }) {
+export default function MovementsTable({ movements }: { movements: Movement[] }) {
   return (
     <table>
       <thead>
@@ -50,7 +51,7 @@ export default function MovementsTable({ movements, zarPerSat }: { movements: Mo
             <td style={{ fontSize: 12 }}><code style={{ color: '#ccc' }}>{m.to}</code></td>
             <td style={{ color: m.direction === 'in' ? '#4ade80' : '#f0f0f0', fontWeight: 500, whiteSpace: 'nowrap' }}>
               {m.direction === 'in' ? '+' : '−'}{m.amount_sats.toLocaleString()} sats
-              {zarPerSat && <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>({formatZAR(m.amount_sats, zarPerSat)})</span>}
+              {m.zar_per_sat != null && <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>({formatZAR(m.amount_sats, m.zar_per_sat)})</span>}
             </td>
             <td className="muted" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.description ?? '—'}</td>
           </tr>

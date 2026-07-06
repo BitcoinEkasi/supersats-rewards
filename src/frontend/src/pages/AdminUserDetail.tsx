@@ -680,7 +680,7 @@ export default function AdminUserDetail() {
         {user.transactions.length === 0 ? (
           <p className="muted">No transactions yet.</p>
         ) : (
-          <MovementsTable movements={user.transactions} zarPerSat={zarPerSat} />
+          <MovementsTable movements={user.transactions} />
         )}
       </div>
 

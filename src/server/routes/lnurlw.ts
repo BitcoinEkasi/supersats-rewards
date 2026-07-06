@@ -5,6 +5,7 @@ import bolt11 from 'bolt11';
 import { db } from '../db/index.js';
 import { decryptP, verifyCmac } from '../services/crypto.js';
 import { payInvoice } from '../services/blink.js';
+import { getZarPerSat } from '../services/zarPrice.js';
 
 const router = Router();
 
@@ -252,14 +253,15 @@ router.get('/callback', async (req, res) => {
   }
 
   // Deduct balance, record transaction, update daily spend, remove pending withdrawal
+  const zarPerSat = await getZarPerSat();
   db.transaction(() => {
     db.prepare('UPDATE users SET balance_sats = balance_sats - ? WHERE id = ?').run(
       invoiceAmountSats,
       user.id
     );
     db.prepare(
-      'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description) VALUES (?, ?, ?, ?, ?)'
-    ).run(user.id, 'spend', invoiceAmountSats, paymentHash, 'BoltCard payment');
+      'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(user.id, 'spend', invoiceAmountSats, paymentHash, 'BoltCard payment', zarPerSat);
     db.prepare(
       'UPDATE cards SET day_spent_sats = day_spent_sats + ? WHERE id = ?'
     ).run(invoiceAmountSats, pending.card_id);

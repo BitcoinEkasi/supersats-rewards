@@ -66,11 +66,11 @@ router.get('/', (req, res) => {
   const card = db.prepare('SELECT card_id FROM cards WHERE id = ?').get(matchedCard.id) as any;
 
   const txRows = db.prepare(
-    'SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
+    'SELECT id, type, amount_sats, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
   ).all(matchedCard.user_id) as any[];
 
   const lnRows = db.prepare(
-    'SELECT id, amount_sats, ln_address, status, description, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
+    'SELECT id, amount_sats, ln_address, status, description, created_at, zar_per_sat FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
   ).all(matchedCard.user_id) as any[];
 
   const lnMapped = lnRows.map((r: any) => ({
@@ -80,6 +80,7 @@ router.get('/', (req, res) => {
     description: r.description ?? r.ln_address,
     status: r.status,
     created_at: r.created_at,
+    zar_per_sat: r.zar_per_sat,
   }));
 
   const transactions = [...txRows, ...lnMapped]

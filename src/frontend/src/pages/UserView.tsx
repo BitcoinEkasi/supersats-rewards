@@ -21,6 +21,7 @@ interface UserData {
     amount_sats: number;
     description: string | null;
     created_at: number;
+    zar_per_sat: number | null;
   }[];
 }
 
@@ -184,7 +185,7 @@ export default function UserView() {
                   </td>
                   <td style={{ fontWeight: 600 }}>
                     {tx.amount_sats.toLocaleString()} sats
-                    {zarPerSat && <span className="muted" style={{ display: 'block', fontSize: 12, fontWeight: 400 }}>{formatZAR(tx.amount_sats, zarPerSat)}</span>}
+                    {tx.zar_per_sat != null && <span className="muted" style={{ display: 'block', fontSize: 12, fontWeight: 400 }}>{formatZAR(tx.amount_sats, tx.zar_per_sat)}</span>}
                   </td>
                   <td className="muted">{tx.description ?? '—'}</td>
                   <td className="muted" style={{ fontSize: 12 }}>{fmtDate(tx.created_at)}</td>

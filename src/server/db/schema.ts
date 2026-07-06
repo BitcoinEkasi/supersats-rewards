@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount_sats INTEGER NOT NULL,
   payment_hash TEXT,
   description TEXT,
+  zar_per_sat REAL,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 

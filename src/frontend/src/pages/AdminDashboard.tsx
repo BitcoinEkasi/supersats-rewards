@@ -382,7 +382,7 @@ export default function AdminDashboard() {
           <div className="card">
             {movementsError && <p className="error-text">{movementsError}</p>}
             {movementsLoading && <p className="muted" style={{ padding: 16, textAlign: 'center' }}>Loading…</p>}
-            {movements && !movementsLoading && <MovementsTable movements={movements} zarPerSat={zarPerSat} />}
+            {movements && !movementsLoading && <MovementsTable movements={movements} />}
           </div>
         </>
       )}

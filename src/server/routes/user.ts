@@ -21,7 +21,7 @@ router.get('/:magic_token', (req, res) => {
   }
 
   const transactions = db
-    .prepare('SELECT id, type, amount_sats, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
+    .prepare('SELECT id, type, amount_sats, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20')
     .all(user.id);
 
   const card = db

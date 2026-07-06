@@ -119,6 +119,12 @@ if (!txTypeCheck.includes('card_fee')) {
   })();
 }
 
+// Migration: add zar_per_sat (ZAR/sat rate locked in at transaction time)
+const txColumns = (db.prepare(`PRAGMA table_info(transactions)`).all() as { name: string }[]).map(c => c.name);
+if (!txColumns.includes('zar_per_sat')) {
+  db.exec('ALTER TABLE transactions ADD COLUMN zar_per_sat REAL');
+}
+
 // LN address payout log
 db.exec(`
   CREATE TABLE IF NOT EXISTS ln_payouts (
@@ -129,6 +135,12 @@ db.exec(`
     payment_hash TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     description TEXT,
+    zar_per_sat REAL,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   )
 `);
+
+const lnPayoutColumns = (db.prepare(`PRAGMA table_info(ln_payouts)`).all() as { name: string }[]).map(c => c.name);
+if (!lnPayoutColumns.includes('zar_per_sat')) {
+  db.exec('ALTER TABLE ln_payouts ADD COLUMN zar_per_sat REAL');
+}

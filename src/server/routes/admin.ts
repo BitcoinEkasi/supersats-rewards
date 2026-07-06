@@ -7,6 +7,7 @@ import { requireAdmin } from '../middleware/adminAuth.js';
 import { generateKeys } from '../services/crypto.js';
 import { getBalance, payInvoice, getTransactions } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
+import { getZarPerSat } from '../services/zarPrice.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -74,10 +75,11 @@ interface Movement {
   from: string;
   to: string;
   description: string | null;
+  zar_per_sat: number | null;
 }
 
 function txToMovement(
-  t: { id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number; payment_hash: string | null; description: string | null; created_at: number },
+  t: { id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number; payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null },
   cardLabel: string,
   blinkCounterParties: Map<string, string>
 ): Movement {
@@ -86,22 +88,25 @@ function txToMovement(
     return {
       id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
       amount_sats: t.amount_sats, from: cardLabel, to: resolved ?? 'Lightning (external)', description: t.description,
+      zar_per_sat: t.zar_per_sat,
     };
   }
   if (t.type === 'card_fee') {
     return {
       id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
       amount_sats: t.amount_sats, from: cardLabel, to: 'System (card fee)', description: t.description,
+      zar_per_sat: t.zar_per_sat,
     };
   }
   return {
     id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'in',
     amount_sats: t.amount_sats, from: `Reserve — ${t.description ?? 'credit'}`, to: cardLabel, description: t.description,
+    zar_per_sat: t.zar_per_sat,
   };
 }
 
 function lnPayoutToMovement(
-  p: { id: number; amount_sats: number; ln_address: string; status: string; description: string | null; created_at: number },
+  p: { id: number; amount_sats: number; ln_address: string; status: string; description: string | null; created_at: number; zar_per_sat: number | null },
   displayName: string
 ): Movement {
   return {
@@ -110,6 +115,7 @@ function lnPayoutToMovement(
     from: `Reserve — ${p.description ?? 'payout'}`,
     to: `${p.ln_address} — ${displayName}`,
     description: p.status !== 'paid' ? `[${p.status}]${p.description ? ' ' + p.description : ''}` : p.description,
+    zar_per_sat: p.zar_per_sat,
   };
 }
 
@@ -117,7 +123,7 @@ function lnPayoutToMovement(
 
 router.get('/movements', async (_req, res) => {
   const txRows = db.prepare(`
-    SELECT t.id, t.type, t.amount_sats, t.payment_hash, t.description, t.created_at,
+    SELECT t.id, t.type, t.amount_sats, t.payment_hash, t.description, t.created_at, t.zar_per_sat,
            u.display_name, c.card_id AS card_number
     FROM transactions t
     JOIN users u ON u.id = t.user_id
@@ -126,7 +132,7 @@ router.get('/movements', async (_req, res) => {
     LIMIT 300
   `).all() as {
     id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
-    payment_hash: string | null; description: string | null; created_at: number;
+    payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
     display_name: string; card_number: string | null;
   }[];
 
@@ -140,7 +146,7 @@ router.get('/movements', async (_req, res) => {
   }
 
   const lnPayoutRows = db.prepare(`
-    SELECT lp.id, lp.amount_sats, lp.ln_address, lp.status, lp.description, lp.created_at,
+    SELECT lp.id, lp.amount_sats, lp.ln_address, lp.status, lp.description, lp.created_at, lp.zar_per_sat,
            u.display_name
     FROM ln_payouts lp
     JOIN users u ON u.id = lp.user_id
@@ -148,7 +154,7 @@ router.get('/movements', async (_req, res) => {
     LIMIT 300
   `).all() as {
     id: number; amount_sats: number; ln_address: string; status: string;
-    description: string | null; created_at: number; display_name: string;
+    description: string | null; created_at: number; zar_per_sat: number | null; display_name: string;
   }[];
 
   const movements = [
@@ -214,10 +220,10 @@ router.get('/users/:id', async (req, res) => {
     .get(userId) as any;
 
   const txRows = db
-    .prepare('SELECT id, type, amount_sats, payment_hash, description, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+    .prepare('SELECT id, type, amount_sats, payment_hash, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(userId) as {
       id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
-      payment_hash: string | null; description: string | null; created_at: number;
+      payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
     }[];
 
   let blinkCounterParties = new Map<string, string>();
@@ -230,10 +236,10 @@ router.get('/users/:id', async (req, res) => {
   }
 
   const lnRows = db
-    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+    .prepare('SELECT id, amount_sats, ln_address, status, description, created_at, zar_per_sat FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(userId) as {
       id: number; amount_sats: number; ln_address: string; status: string;
-      description: string | null; created_at: number;
+      description: string | null; created_at: number; zar_per_sat: number | null;
     }[];
 
   const cardLabel = `Card ${card?.card_id ?? '?'} — ${user.display_name}`;
@@ -260,7 +266,7 @@ router.get('/users/:id', async (req, res) => {
 
 // ── Credit balance ────────────────────────────────────────────────────────────
 
-router.post('/users/:id/credit', (req, res) => {
+router.post('/users/:id/credit', async (req, res) => {
   const userId = Number(req.params.id);
   const { amount_sats, description } = req.body as {
     amount_sats?: number;
@@ -274,10 +280,11 @@ router.post('/users/:id/credit', (req, res) => {
   const user = db.prepare('SELECT id, balance_sats FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
+  const zarPerSat = await getZarPerSat();
   db.transaction(() => {
     db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(amount_sats, userId);
-    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
-      userId, 'refill', amount_sats, description ?? 'Manual credit'
+    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+      userId, 'refill', amount_sats, description ?? 'Manual credit', zarPerSat
     );
   })();
 
@@ -287,17 +294,18 @@ router.post('/users/:id/credit', (req, res) => {
 
 // ── Withdraw all ──────────────────────────────────────────────────────────────
 
-router.post('/users/:id/withdraw-all', (req, res) => {
+router.post('/users/:id/withdraw-all', async (req, res) => {
   const userId = Number(req.params.id);
   const user = db.prepare('SELECT id, balance_sats FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
   if (user.balance_sats <= 0) { res.status(400).json({ error: 'Balance is already zero' }); return; }
 
   const amount = user.balance_sats;
+  const zarPerSat = await getZarPerSat();
   db.transaction(() => {
     db.prepare('UPDATE users SET balance_sats = 0 WHERE id = ?').run(userId);
-    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
-      userId, 'spend', amount, 'Admin withdrawal'
+    db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+      userId, 'spend', amount, 'Admin withdrawal', zarPerSat
     );
   })();
 
@@ -364,7 +372,7 @@ router.get('/users/:id/card/qr', async (req, res) => {
 });
 
 // Regenerate setup token + new keys (reprogram / replace card)
-router.post('/users/:id/card/reprogram', (req, res) => {
+router.post('/users/:id/card/reprogram', async (req, res) => {
   const userId = Number(req.params.id);
   const { replacement_type } = req.body as { replacement_type?: string };
   if (!replacement_type || !['technical', 'lost_damaged'].includes(replacement_type)) {
@@ -389,6 +397,7 @@ router.post('/users/:id/card/reprogram', (req, res) => {
     }
   }
 
+  const zarPerSat = isLostDamaged ? await getZarPerSat() : null;
   db.transaction(() => {
     db.prepare(`
       UPDATE cards SET k0=?, k1=?, k2=?, k3=?, k4=?, setup_token=?, programmed_at=NULL, uid=NULL, counter=-1,
@@ -404,8 +413,8 @@ router.post('/users/:id/card/reprogram', (req, res) => {
 
     if (isLostDamaged) {
       db.prepare('UPDATE users SET balance_sats = balance_sats - ? WHERE id = ?').run(REPLACEMENT_FEE_SATS, userId);
-      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description) VALUES (?, ?, ?, ?)').run(
-        userId, 'card_fee', REPLACEMENT_FEE_SATS, 'Card replacement fee (lost/damaged)'
+      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+        userId, 'card_fee', REPLACEMENT_FEE_SATS, 'Card replacement fee (lost/damaged)', zarPerSat
       );
     }
   })();
@@ -531,9 +540,10 @@ router.post('/users/:id/ln-payout', async (req, res) => {
     console.error(`[ln-payout] manual send to ${ln_address} failed:`, err.message);
   }
 
+  const zarPerSat = await getZarPerSat();
   db.prepare(
-    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null);
+    'INSERT INTO ln_payouts (user_id, amount_sats, ln_address, payment_hash, status, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, amount_sats, ln_address, paymentHash, status, description ?? null, zarPerSat);
 
   res.status(status === 'paid' ? 200 : 502).json({ status, ln_address, amount_sats });
 });
