@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';
 import { formatTs } from '../lib/time';
 import MovementsTable, { type Movement } from '../components/MovementsTable';
+import { exportMovementsCsv } from '../lib/csvExport';
 
 interface UserRow {
   id: number;
@@ -356,6 +357,14 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span className="muted" style={{ fontSize: 13 }}>Internal ledger — card top-ups, card taps, and LN address payouts</span>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn-ghost"
+                style={{ fontSize: 12 }}
+                onClick={() => movements && exportMovementsCsv(movements)}
+                disabled={!movements || movements.length === 0}
+              >
+                ⬇ Export CSV
+              </button>
               <button
                 className="btn-ghost"
                 style={{ fontSize: 12 }}
