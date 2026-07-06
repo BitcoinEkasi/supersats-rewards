@@ -68,6 +68,7 @@ export default function AdminDashboard() {
   const [movements, setMovements] = useState<Movement[] | null>(null);
   const [movementsError, setMovementsError] = useState('');
   const [movementsLoading, setMovementsLoading] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -123,6 +124,17 @@ export default function AdminDashboard() {
       setMovementsError('Network error');
     } finally {
       setMovementsLoading(false);
+    }
+  }
+
+  async function handleExportMovementsPdf() {
+    if (!movements) return;
+    setExportingPdf(true);
+    try {
+      const { exportMovementsPdf } = await import('../lib/pdfExport');
+      exportMovementsPdf(movements);
+    } finally {
+      setExportingPdf(false);
     }
   }
 
@@ -343,9 +355,19 @@ export default function AdminDashboard() {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span className="muted" style={{ fontSize: 13 }}>Internal ledger — card top-ups, card taps, and LN address payouts</span>
-            <button className="btn-ghost" style={{ fontSize: 12 }} onClick={loadMovements} disabled={movementsLoading}>
-              {movementsLoading ? '…' : '↻ Refresh'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn-ghost"
+                style={{ fontSize: 12 }}
+                onClick={handleExportMovementsPdf}
+                disabled={!movements || movements.length === 0 || exportingPdf}
+              >
+                {exportingPdf ? '…' : '⬇ Export PDF'}
+              </button>
+              <button className="btn-ghost" style={{ fontSize: 12 }} onClick={loadMovements} disabled={movementsLoading}>
+                {movementsLoading ? '…' : '↻ Refresh'}
+              </button>
+            </div>
           </div>
 
           <div className="card">
