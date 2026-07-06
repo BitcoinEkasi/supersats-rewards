@@ -34,7 +34,9 @@ router.get('/dashboard', async (_req, res) => {
     console.error('[admin] getBalance error:', err);
   }
 
-  res.json({ users, systemBalance });
+  const settings = db.prepare('SELECT cards_enabled FROM system_settings WHERE id = 1').get() as { cards_enabled: number };
+
+  res.json({ users, systemBalance, cardsEnabled: !!settings.cards_enabled });
 });
 
 router.get('/blink-transactions', async (req, res) => {
@@ -508,6 +510,18 @@ router.post('/users/:id/card/disable', (req, res) => {
   if (updated.changes === 0) { res.status(404).json({ error: 'No card found' }); return; }
   db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'disabled');
   res.json({ enabled: false });
+});
+
+// ── Global emergency stop — freezes card-tap spending for every card ─────────
+
+router.post('/system-settings/cards-enabled', (req, res) => {
+  const { enabled } = req.body as { enabled?: boolean };
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled (boolean) required' });
+    return;
+  }
+  db.prepare('UPDATE system_settings SET cards_enabled = ? WHERE id = 1').run(enabled ? 1 : 0);
+  res.json({ enabled });
 });
 
 // ── POST /api/admin/users/:id/ln-payout ──────────────────────────────────────

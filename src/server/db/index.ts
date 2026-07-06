@@ -144,3 +144,13 @@ const lnPayoutColumns = (db.prepare(`PRAGMA table_info(ln_payouts)`).all() as { 
 if (!lnPayoutColumns.includes('zar_per_sat')) {
   db.exec('ALTER TABLE ln_payouts ADD COLUMN zar_per_sat REAL');
 }
+
+// Global emergency stop — single-row config table. Defaults to enabled (1)
+// so nothing changes for anyone unless an admin deliberately flips it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS system_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    cards_enabled INTEGER NOT NULL DEFAULT 1
+  )
+`);
+db.exec('INSERT OR IGNORE INTO system_settings (id, cards_enabled) VALUES (1, 1)');

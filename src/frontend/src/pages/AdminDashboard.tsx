@@ -70,12 +70,37 @@ export default function AdminDashboard() {
   const [movementsError, setMovementsError] = useState('');
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [cardsEnabled, setCardsEnabled] = useState(true);
+  const [togglingCards, setTogglingCards] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
     const data = await res.json();
     setUsers(data.users ?? []);
     setSystemBalance(data.systemBalance ?? null);
+    setCardsEnabled(data.cardsEnabled ?? true);
+  }
+
+  async function setCardsEnabledRemote(enabled: boolean) {
+    setTogglingCards(true);
+    try {
+      const res = await fetch('/api/admin/system-settings/cards-enabled', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json();
+      setCardsEnabled(data.enabled);
+    } finally {
+      setTogglingCards(false);
+    }
+  }
+
+  function handleEmergencyStop() {
+    if (!window.confirm('Stop ALL cards from being tapped/spent right now? This can be undone at any time by reactivating.')) {
+      return;
+    }
+    setCardsEnabledRemote(false);
   }
 
   async function loadBlinkTxs() {
@@ -223,9 +248,37 @@ export default function AdminDashboard() {
               </span>
             </>
           )}
+          {cardsEnabled ? (
+            <button
+              className="btn-ghost"
+              style={{ color: '#f87171', borderColor: '#f87171' }}
+              onClick={handleEmergencyStop}
+              disabled={togglingCards}
+            >
+              {togglingCards ? '…' : '🛑 Emergency Stop'}
+            </button>
+          ) : (
+            <button
+              className="btn-primary"
+              style={{ background: '#16a34a' }}
+              onClick={() => setCardsEnabledRemote(true)}
+              disabled={togglingCards}
+            >
+              {togglingCards ? '…' : '▶ Reactivate All Cards'}
+            </button>
+          )}
           <button className="btn-ghost" onClick={logout}>Logout</button>
         </div>
       </div>
+
+      {!cardsEnabled && (
+        <div style={{
+          background: '#450a0a', border: '1px solid #dc2626', borderRadius: 8,
+          padding: '10px 16px', marginBottom: 20, color: '#fecaca', fontSize: 13,
+        }}>
+          ⚠ Card spending is currently disabled for all cards. Balance checks still work, but no card can be tapped to spend until you reactivate.
+        </div>
+      )}
 
       {/* ── Tabs ── */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid #2a2a2a' }}>

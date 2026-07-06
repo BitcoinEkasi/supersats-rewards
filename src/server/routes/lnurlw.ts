@@ -43,6 +43,12 @@ interface PendingWithdrawal {
 // ── GET /lnurlw — initial card tap ────────────────────────────────────────────
 
 router.get('/', (req, res) => {
+  const settings = db.prepare('SELECT cards_enabled FROM system_settings WHERE id = 1').get() as { cards_enabled: number };
+  if (!settings.cards_enabled) {
+    res.json({ status: 'ERROR', reason: 'Card payments are temporarily unavailable — please try again later.' });
+    return;
+  }
+
   const { p, c } = req.query as { p?: string; c?: string };
 
   if (!p || !c || p.length !== 32 || c.length !== 16) {
@@ -167,6 +173,12 @@ router.get('/', (req, res) => {
 // ── GET /lnurlw/callback — payment callback ───────────────────────────────────
 
 router.get('/callback', async (req, res) => {
+  const settings = db.prepare('SELECT cards_enabled FROM system_settings WHERE id = 1').get() as { cards_enabled: number };
+  if (!settings.cards_enabled) {
+    res.json({ status: 'ERROR', reason: 'Card payments are temporarily unavailable — please try again later.' });
+    return;
+  }
+
   const { k1, pr } = req.query as { k1?: string; pr?: string };
 
   if (!k1 || !pr) {
