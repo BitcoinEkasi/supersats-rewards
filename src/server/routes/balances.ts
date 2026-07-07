@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
+import { blinkCounterPartyByPaymentHash, txToMovement, lnPayoutToMovement } from '../services/movements.js';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.get('/', (req, res) => {
   res.json(users);
 });
 
-router.get('/:id/transactions', (req, res) => {
+router.get('/:id/transactions', async (req, res) => {
   if (!checkPasscode(req, res)) return;
 
   const userId = Number(req.params.id);
@@ -60,25 +61,36 @@ router.get('/:id/transactions', (req, res) => {
   const user = db.prepare('SELECT id, display_name, balance_sats FROM users WHERE id = ? AND username != ?').get(userId, 'tsk00000') as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
+  const card = db.prepare('SELECT card_id FROM cards WHERE user_id = ?').get(userId) as { card_id: string | null } | undefined;
+  const cardLabel = `Card ${card?.card_id ?? '?'} — ${user.display_name}`;
+
   const txRows = db.prepare(
-    'SELECT id, type, amount_sats, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
-  ).all(userId) as any[];
+    'SELECT id, type, amount_sats, payment_hash, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
+  ).all(userId) as {
+    id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+    payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
+  }[];
+
+  let blinkCounterParties = new Map<string, string>();
+  if (txRows.some((t) => t.type === 'spend' && t.payment_hash)) {
+    try {
+      blinkCounterParties = await blinkCounterPartyByPaymentHash();
+    } catch (err) {
+      console.error('[balances] failed to fetch Blink counterparties:', err);
+    }
+  }
 
   const lnRows = db.prepare(
     'SELECT id, amount_sats, ln_address, status, description, created_at, zar_per_sat FROM ln_payouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
-  ).all(userId) as any[];
+  ).all(userId) as {
+    id: number; amount_sats: number; ln_address: string; status: string;
+    description: string | null; created_at: number; zar_per_sat: number | null;
+  }[];
 
-  const lnMapped = lnRows.map((r: any) => ({
-    id: `ln_${r.id}`,
-    type: 'ln_payout',
-    amount_sats: r.amount_sats,
-    description: r.description ?? r.ln_address,
-    status: r.status,
-    created_at: r.created_at,
-    zar_per_sat: r.zar_per_sat,
-  }));
-
-  const transactions = [...txRows, ...lnMapped]
+  const transactions = [
+    ...txRows.map((t) => txToMovement(t, cardLabel, blinkCounterParties)),
+    ...lnRows.map((p) => lnPayoutToMovement(p, user.display_name)),
+  ]
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, 50);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePriceFeed, formatZAR } from '../hooks/usePriceFeed';
+import MovementsTable, { type Movement } from '../components/MovementsTable';
 
 const STORAGE_KEY = 'balances_passcode';
 
@@ -26,41 +27,10 @@ const TSK_GROUPS = [
   { value: '__AC__', label: 'Assistant Coaches' },
 ];
 
-interface Transaction {
-  id: number | string;
-  type: string;
-  amount_sats: number;
-  description: string | null;
-  status?: string;
-  created_at: number;
-  zar_per_sat: number | null;
-}
-
 interface UserDetail {
   display_name: string;
   balance_sats: number;
-  transactions: Transaction[];
-}
-
-function txLabel(type: string) {
-  if (type === 'refill') return 'Credit';
-  if (type === 'spend') return 'Spend';
-  if (type === 'card_fee') return 'Card fee';
-  if (type === 'ln_payout') return 'LN payout';
-  return type;
-}
-
-function txColor(type: string) {
-  if (type === 'refill') return '#4ade80';
-  if (type === 'spend' || type === 'card_fee') return '#f87171';
-  if (type === 'ln_payout') return '#facc15';
-  return '#aaa';
-}
-
-function formatDate(unixSecs: number) {
-  return new Date(unixSecs * 1000).toLocaleDateString('en-ZA', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  transactions: Movement[];
 }
 
 export default function BalancesView() {
@@ -242,28 +212,12 @@ export default function BalancesView() {
             <div style={{ fontSize: 12, color: '#666', marginBottom: 12, marginTop: 4 }}>Transaction history</div>
 
             {/* Transactions */}
-            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1 }}>
               {loadingDetail ? (
                 <p className="muted" style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>Loading…</p>
-              ) : selected.transactions.length === 0 ? (
-                <p className="muted" style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>No transactions yet.</p>
-              ) : selected.transactions.map((tx) => (
-                <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#242424', borderRadius: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 13, color: txColor(tx.type), fontWeight: 600 }}>{txLabel(tx.type)}</div>
-                    {tx.description && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{tx.description}</div>}
-                    <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatDate(tx.created_at)}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: tx.type === 'refill' ? '#4ade80' : '#f0f0f0' }}>
-                      {tx.type === 'refill' ? '+' : '-'}{tx.amount_sats.toLocaleString()} sats
-                    </div>
-                    {tx.zar_per_sat != null && (
-                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{formatZAR(tx.amount_sats, tx.zar_per_sat)}</div>
-                    )}
-                  </div>
-                </div>
-              ))}
+              ) : (
+                <MovementsTable movements={selected.transactions} />
+              )}
             </div>
           </div>
         </div>
