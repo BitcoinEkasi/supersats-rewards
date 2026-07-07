@@ -5,7 +5,7 @@
   "start_url": "/balances",
   "scope": "/balances",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "theme_color": "#f7931a",
   "background_color": "#0f0f0f",
   "icons": [

@@ -43,6 +43,28 @@ export default function BalancesView() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<UserDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape)');
+    setIsLandscape(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // Only allow rotation while the transaction-history modal is open — the
+  // list view stays portrait-locked. Unsupported on iOS Safari / non-fullscreen
+  // contexts, so this is best-effort and fails silently where unavailable.
+  useEffect(() => {
+    const orientation = (screen as any).orientation;
+    if (!orientation?.lock) return;
+    if (selected) {
+      orientation.unlock?.();
+    } else {
+      orientation.lock('portrait').catch(() => {});
+    }
+  }, [selected]);
 
   async function fetchBalances(code: string): Promise<boolean> {
     const res = await fetch('/api/balances', { headers: { 'X-Passcode': code } });
@@ -187,11 +209,18 @@ export default function BalancesView() {
       {/* Transaction modal */}
       {selected && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: isLandscape ? 'center' : 'flex-end', justifyContent: 'center' }}
           onClick={() => setSelected(null)}
         >
           <div
-            style={{ background: '#1a1a1a', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px' }}
+            style={{
+              background: '#1a1a1a',
+              borderRadius: isLandscape ? 16 : '16px 16px 0 0',
+              width: '100%',
+              maxWidth: isLandscape ? 900 : 480,
+              maxHeight: isLandscape ? '92vh' : '80vh',
+              display: 'flex', flexDirection: 'column', padding: '20px 16px 32px',
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal header */}
