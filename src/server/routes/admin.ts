@@ -22,7 +22,7 @@ router.get('/dashboard', async (_req, res) => {
     SELECT u.id, u.username, u.display_name, u.balance_sats, u.ln_payout_address, u.created_at,
            u.tsk_group, u.ac,
            c.id AS card_id, c.card_id AS card_number, c.programmed_at, c.enabled AS card_enabled, c.uid,
-           c.wiped_at, c.setup_token, c.tx_max_sats, c.day_max_sats
+           c.wiped_at, c.setup_token
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
     ORDER BY u.created_at DESC
@@ -371,7 +371,7 @@ router.patch('/users/:id/card/limits', (req, res) => {
 });
 
 // Overwrite spending limits for every currently-active (enabled) card at once
-router.patch('/cards/limits/bulk', (req, res) => {
+router.patch('/cards/limits/bulk', async (req, res) => {
   const { tx_max_sats, day_max_sats } = req.body as { tx_max_sats?: number; day_max_sats?: number };
   if (!tx_max_sats && !day_max_sats) {
     res.status(400).json({ error: 'Provide tx_max_sats and/or day_max_sats' });
@@ -381,6 +381,8 @@ router.patch('/cards/limits/bulk', (req, res) => {
     res.status(400).json({ error: 'Limits must be positive' });
     return;
   }
+
+  const zarPerSat = await getZarPerSat();
 
   const updated = db.transaction(() => {
     const affected = db.prepare('SELECT user_id FROM cards WHERE enabled = 1').all() as { user_id: number }[];
@@ -392,10 +394,21 @@ router.patch('/cards/limits/bulk', (req, res) => {
     const insertEvent = db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)');
     for (const { user_id } of affected) insertEvent.run(user_id, 'limits_updated', desc);
 
+    db.prepare(
+      'INSERT INTO bulk_limit_events (tx_max_sats, day_max_sats, affected_count, zar_per_sat) VALUES (?, ?, ?, ?)'
+    ).run(tx_max_sats ?? null, day_max_sats ?? null, affected.length, zarPerSat);
+
     return affected.length;
   })();
 
   res.json({ updated, tx_max_sats, day_max_sats });
+});
+
+router.get('/cards/limits/bulk/history', (_req, res) => {
+  const history = db.prepare(
+    'SELECT id, tx_max_sats, day_max_sats, affected_count, zar_per_sat, created_at FROM bulk_limit_events ORDER BY created_at DESC LIMIT 20'
+  ).all();
+  res.json({ history });
 });
 
 router.delete('/users/:id/card', (req, res) => {

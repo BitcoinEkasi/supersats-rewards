@@ -140,6 +140,18 @@ db.exec(`
   )
 `);
 
+// Bulk spending-limit update log — one row per bulk action, not per card
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bulk_limit_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_max_sats INTEGER,
+    day_max_sats INTEGER,
+    affected_count INTEGER NOT NULL,
+    zar_per_sat REAL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )
+`);
+
 const lnPayoutColumns = (db.prepare(`PRAGMA table_info(ln_payouts)`).all() as { name: string }[]).map(c => c.name);
 if (!lnPayoutColumns.includes('zar_per_sat')) {
   db.exec('ALTER TABLE ln_payouts ADD COLUMN zar_per_sat REAL');

@@ -19,8 +19,6 @@ interface UserRow {
   setup_token: string | null;
   tsk_group: string | null;
   ac: boolean;
-  tx_max_sats: number | null;
-  day_max_sats: number | null;
 }
 
 const TSK_GROUPS = [
@@ -32,6 +30,15 @@ const TSK_GROUPS = [
   { value: 'FREE_SURFERS', label: 'Free Surfers' },
   { value: '__AC__', label: 'Assistant Coaches' },
 ];
+
+interface BulkLimitEvent {
+  id: number;
+  tx_max_sats: number | null;
+  day_max_sats: number | null;
+  affected_count: number;
+  zar_per_sat: number | null;
+  created_at: number;
+}
 
 interface BlinkTx {
   id: string;
@@ -78,6 +85,7 @@ export default function AdminDashboard() {
   const [bulkTxInput, setBulkTxInput] = useState('');
   const [bulkDayInput, setBulkDayInput] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkHistory, setBulkHistory] = useState<BulkLimitEvent[]>([]);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -109,6 +117,20 @@ export default function AdminDashboard() {
     setCardsEnabledRemote(false);
   }
 
+  async function loadBulkHistory() {
+    const res = await fetch('/api/admin/cards/limits/bulk/history', { headers: authHeaders() });
+    const data = await res.json();
+    setBulkHistory(data.history ?? []);
+  }
+
+  function toggleBulkLimits() {
+    setShowBulkLimits((v) => {
+      const next = !v;
+      if (next) loadBulkHistory();
+      return next;
+    });
+  }
+
   async function saveBulkLimits(e: React.FormEvent) {
     e.preventDefault();
     const tx = parseInt(bulkTxInput);
@@ -132,10 +154,10 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (!res.ok) { alert(data.error); return; }
       alert(`Updated limits on ${data.updated} active card(s).`);
-      setShowBulkLimits(false);
       setBulkTxInput('');
       setBulkDayInput('');
       load();
+      loadBulkHistory();
     } finally {
       setBulkSaving(false);
     }
@@ -348,7 +370,7 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-ghost" onClick={() => setShowBulkLimits((v) => !v)}>Set Limits for All Active Cards</button>
+              <button className="btn-ghost" onClick={toggleBulkLimits}>Set Limits for All Active Cards</button>
               <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
             </div>
           </div>
@@ -391,6 +413,23 @@ export default function AdminDashboard() {
                 <button type="submit" className="btn-primary" disabled={bulkSaving}>{bulkSaving ? '…' : 'Save'}</button>
                 <button type="button" className="btn-ghost" onClick={() => setShowBulkLimits(false)}>Cancel</button>
               </form>
+
+              {bulkHistory.length > 0 && (
+                <div style={{ marginTop: 14, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Recent bulk updates</div>
+                  {bulkHistory.map((h) => (
+                    <div key={h.id} style={{ fontSize: 12, color: '#ccc', marginBottom: 4 }}>
+                      <span className="muted">{formatTs(h.created_at)}</span>{' — '}
+                      {h.tx_max_sats ? `${h.tx_max_sats.toLocaleString()} sats/tap` : 'tap unchanged'}
+                      {h.zar_per_sat && h.tx_max_sats ? ` (${formatZAR(h.tx_max_sats, h.zar_per_sat)})` : ''}
+                      {', '}
+                      {h.day_max_sats ? `${h.day_max_sats.toLocaleString()} sats/day` : 'day unchanged'}
+                      {h.zar_per_sat && h.day_max_sats ? ` (${formatZAR(h.day_max_sats, h.zar_per_sat)})` : ''}
+                      {' · '}{h.affected_count} card(s)
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -445,7 +484,6 @@ export default function AdminDashboard() {
                   <th>Display Name</th>
                   <th>Balance</th>
                   <th>Card / LN</th>
-                  <th>Limits</th>
                   <th></th>
                 </tr>
               </thead>
@@ -471,27 +509,13 @@ export default function AdminDashboard() {
                         </>
                       )}
                     </td>
-                    <td>
-                      {u.card_id ? (
-                        <span style={{ fontSize: 12 }}>
-                          <div>
-                            {u.tx_max_sats! >= 999999999 ? 'Unlimited' : u.tx_max_sats!.toLocaleString()} / tap
-                            {zarPerSat && u.tx_max_sats! < 999999999 && <span className="muted" style={{ marginLeft: 4 }}>({formatZAR(u.tx_max_sats!, zarPerSat)})</span>}
-                          </div>
-                          <div>
-                            {u.day_max_sats! >= 999999999 ? 'Unlimited' : u.day_max_sats!.toLocaleString()} / day
-                            {zarPerSat && u.day_max_sats! < 999999999 && <span className="muted" style={{ marginLeft: 4 }}>({formatZAR(u.day_max_sats!, zarPerSat)})</span>}
-                          </div>
-                        </span>
-                      ) : <span className="muted">—</span>}
-                    </td>
                     <td style={{ textAlign: 'right' }}>
                       <span style={{ color: '#f7931a', fontSize: 13 }}>View →</span>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 32 }}>
+                  <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 32 }}>
                     {search ? 'No users match your search' : 'No users yet'}
                   </td></tr>
                 )}
