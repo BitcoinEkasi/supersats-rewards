@@ -449,6 +449,7 @@ export default function AdminUserDetail() {
             const c = user.card!;
             if (c.setup_token || !c.programmed_at) return <span className="badge badge-yellow">Awaiting programming</span>;
             if (c.wiped_at) return <span className="badge" style={{ background: '#b45309', color: '#fff' }}>Wiped</span>;
+            if (!c.enabled) return <span className="badge badge-red">Blocked</span>;
             return <span className="badge badge-green">Active</span>;
           })()}
         </div>
@@ -602,6 +603,26 @@ export default function AdminUserDetail() {
                 </table>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {user.card.enabled ? (
+                    <button
+                      className="btn-ghost"
+                      style={{ fontSize: 12, color: '#f87171', borderColor: '#f87171' }}
+                      onClick={() => {
+                        if (!confirm('Block this card? It will be unable to tap/spend until unblocked.')) return;
+                        toggleCard(false);
+                      }}
+                    >
+                      Block Card
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-primary"
+                      style={{ fontSize: 12, background: '#16a34a' }}
+                      onClick={() => toggleCard(true)}
+                    >
+                      Unblock Card
+                    </button>
+                  )}
                   <button className="btn-ghost" onClick={wipeCard} style={{ fontSize: 12 }}>Wipe Card</button>
                   <button className="btn-ghost" onClick={() => setReplaceModal(true)} style={{ fontSize: 12 }}>Replace Card</button>
                 </div>
