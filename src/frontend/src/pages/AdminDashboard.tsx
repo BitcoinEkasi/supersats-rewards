@@ -86,6 +86,10 @@ export default function AdminDashboard() {
   const [bulkDayInput, setBulkDayInput] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkHistory, setBulkHistory] = useState<BulkLimitEvent[]>([]);
+  const [showVelocitySettings, setShowVelocitySettings] = useState(false);
+  const [velocityMaxTapsInput, setVelocityMaxTapsInput] = useState('3');
+  const [velocityWindowInput, setVelocityWindowInput] = useState('5');
+  const [velocitySaving, setVelocitySaving] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -93,6 +97,8 @@ export default function AdminDashboard() {
     setUsers(data.users ?? []);
     setSystemBalance(data.systemBalance ?? null);
     setCardsEnabled(data.cardsEnabled ?? true);
+    if (data.velocityMaxTaps) setVelocityMaxTapsInput(String(data.velocityMaxTaps));
+    if (data.velocityWindowSecs) setVelocityWindowInput(String(Math.round(data.velocityWindowSecs / 60)));
   }
 
   async function setCardsEnabledRemote(enabled: boolean) {
@@ -115,6 +121,29 @@ export default function AdminDashboard() {
       return;
     }
     setCardsEnabledRemote(false);
+  }
+
+  async function saveVelocitySettings(e: React.FormEvent) {
+    e.preventDefault();
+    const maxTaps = parseInt(velocityMaxTapsInput);
+    const windowMins = parseInt(velocityWindowInput);
+    if (!maxTaps || maxTaps <= 0 || !windowMins || windowMins <= 0) {
+      alert('Enter valid positive values');
+      return;
+    }
+    setVelocitySaving(true);
+    try {
+      const res = await fetch('/api/admin/system-settings/velocity-limit', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_taps: maxTaps, window_secs: windowMins * 60 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      setShowVelocitySettings(false);
+    } finally {
+      setVelocitySaving(false);
+    }
   }
 
   async function loadBulkHistory() {
@@ -327,9 +356,43 @@ export default function AdminDashboard() {
               {togglingCards ? '…' : '▶ Reactivate All Cards'}
             </button>
           )}
+          <button className="btn-ghost" onClick={() => setShowVelocitySettings((v) => !v)}>🔒 Auto-Lock Settings</button>
           <button className="btn-ghost" onClick={logout}>Logout</button>
         </div>
       </div>
+
+      {showVelocitySettings && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 style={{ marginBottom: 8 }}>Auto-Lock Settings</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+            If a card is tapped this many times within the given window, it is automatically disabled to protect against a lost or stolen card being drained.
+          </p>
+          <form onSubmit={saveVelocitySettings} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Max taps</label>
+              <input
+                type="number"
+                value={velocityMaxTapsInput}
+                onChange={(e) => setVelocityMaxTapsInput(e.target.value)}
+                min="1"
+                style={{ width: 100 }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Within (minutes)</label>
+              <input
+                type="number"
+                value={velocityWindowInput}
+                onChange={(e) => setVelocityWindowInput(e.target.value)}
+                min="1"
+                style={{ width: 100 }}
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={velocitySaving}>{velocitySaving ? '…' : 'Save'}</button>
+            <button type="button" className="btn-ghost" onClick={() => setShowVelocitySettings(false)}>Cancel</button>
+          </form>
+        </div>
+      )}
 
       {!cardsEnabled && (
         <div style={{

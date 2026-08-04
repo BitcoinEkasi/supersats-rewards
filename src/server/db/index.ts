@@ -166,3 +166,21 @@ db.exec(`
   )
 `);
 db.exec('INSERT OR IGNORE INTO system_settings (id, cards_enabled) VALUES (1, 1)');
+
+const settingsColumns = (db.prepare(`PRAGMA table_info(system_settings)`).all() as { name: string }[]).map(c => c.name);
+if (!settingsColumns.includes('velocity_max_taps')) {
+  db.exec('ALTER TABLE system_settings ADD COLUMN velocity_max_taps INTEGER NOT NULL DEFAULT 3');
+}
+if (!settingsColumns.includes('velocity_window_secs')) {
+  db.exec('ALTER TABLE system_settings ADD COLUMN velocity_window_secs INTEGER NOT NULL DEFAULT 300');
+}
+
+// Tap log for the velocity-limit security rule — one row per CMAC-verified tap
+db.exec(`
+  CREATE TABLE IF NOT EXISTS card_taps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id INTEGER NOT NULL REFERENCES cards(id),
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_card_taps_card_id_created_at ON card_taps(card_id, created_at)');

@@ -35,9 +35,14 @@ router.get('/dashboard', async (_req, res) => {
     console.error('[admin] getBalance error:', err);
   }
 
-  const settings = db.prepare('SELECT cards_enabled FROM system_settings WHERE id = 1').get() as { cards_enabled: number };
+  const settings = db.prepare(
+    'SELECT cards_enabled, velocity_max_taps, velocity_window_secs FROM system_settings WHERE id = 1'
+  ).get() as { cards_enabled: number; velocity_max_taps: number; velocity_window_secs: number };
 
-  res.json({ users, systemBalance, cardsEnabled: !!settings.cards_enabled });
+  res.json({
+    users, systemBalance, cardsEnabled: !!settings.cards_enabled,
+    velocityMaxTaps: settings.velocity_max_taps, velocityWindowSecs: settings.velocity_window_secs,
+  });
 });
 
 router.get('/blink-transactions', async (req, res) => {
@@ -492,6 +497,18 @@ router.post('/system-settings/cards-enabled', (req, res) => {
   }
   db.prepare('UPDATE system_settings SET cards_enabled = ? WHERE id = 1').run(enabled ? 1 : 0);
   res.json({ enabled });
+});
+
+// ── Velocity-limit (rapid-tap auto-disable) settings ─────────────────────────
+
+router.post('/system-settings/velocity-limit', (req, res) => {
+  const { max_taps, window_secs } = req.body as { max_taps?: number; window_secs?: number };
+  if (!max_taps || !window_secs || max_taps <= 0 || window_secs <= 0) {
+    res.status(400).json({ error: 'max_taps and window_secs must be positive' });
+    return;
+  }
+  db.prepare('UPDATE system_settings SET velocity_max_taps = ?, velocity_window_secs = ? WHERE id = 1').run(max_taps, window_secs);
+  res.json({ velocity_max_taps: max_taps, velocity_window_secs: window_secs });
 });
 
 // ── POST /api/admin/users/:id/ln-payout ──────────────────────────────────────

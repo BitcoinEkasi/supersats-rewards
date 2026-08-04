@@ -659,6 +659,7 @@ export default function AdminUserDetail() {
                   replaced:   { label: 'Replace initiated', color: '#b45309' },
                   enabled:    { label: 'Enabled',         color: '#16a34a' },
                   disabled:   { label: 'Disabled',        color: '#dc2626' },
+                  auto_disabled: { label: 'Auto-disabled (velocity limit)', color: '#dc2626' },
                 };
                 const s = labelMap[e.event] ?? { label: e.event, color: '#888' };
                 return (

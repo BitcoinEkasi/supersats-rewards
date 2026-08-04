@@ -43,7 +43,9 @@ interface PendingWithdrawal {
 // ── GET /lnurlw — initial card tap ────────────────────────────────────────────
 
 router.get('/', (req, res) => {
-  const settings = db.prepare('SELECT cards_enabled FROM system_settings WHERE id = 1').get() as { cards_enabled: number };
+  const settings = db.prepare(
+    'SELECT cards_enabled, velocity_max_taps, velocity_window_secs FROM system_settings WHERE id = 1'
+  ).get() as { cards_enabled: number; velocity_max_taps: number; velocity_window_secs: number };
   if (!settings.cards_enabled) {
     res.json({ status: 'ERROR', reason: 'Card payments are temporarily unavailable — please try again later.' });
     return;
@@ -103,6 +105,28 @@ router.get('/', (req, res) => {
   // Verify CMAC
   if (!verifyCmac(matchedCard.k2, uid, counter, c)) {
     res.json({ status: 'ERROR', reason: 'CMAC verification failed' });
+    return;
+  }
+
+  // Velocity check: too many taps in a short window auto-disables the card
+  // (protects a lost/stolen card from being drained — there's no PIN on the NFC tap itself)
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const windowStart = nowSecs - settings.velocity_window_secs;
+  db.prepare('INSERT INTO card_taps (card_id, created_at) VALUES (?, ?)').run(matchedCard.id, nowSecs);
+  db.prepare('DELETE FROM card_taps WHERE card_id = ? AND created_at <= ?').run(matchedCard.id, windowStart);
+  const tapCount = (db.prepare(
+    'SELECT COUNT(*) AS n FROM card_taps WHERE card_id = ? AND created_at > ?'
+  ).get(matchedCard.id, windowStart) as { n: number }).n;
+
+  if (tapCount >= settings.velocity_max_taps) {
+    db.transaction(() => {
+      db.prepare('UPDATE cards SET enabled = 0 WHERE id = ?').run(matchedCard!.id);
+      db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(
+        matchedCard!.user_id, 'auto_disabled',
+        `Velocity limit: ${tapCount} taps within ${settings.velocity_window_secs}s`
+      );
+    })();
+    res.json({ status: 'ERROR', reason: 'Card disabled — unusual tap activity detected. Contact an administrator.' });
     return;
   }
 
