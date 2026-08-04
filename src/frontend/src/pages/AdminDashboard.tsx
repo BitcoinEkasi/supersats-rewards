@@ -19,6 +19,8 @@ interface UserRow {
   setup_token: string | null;
   tsk_group: string | null;
   ac: boolean;
+  tx_max_sats: number | null;
+  day_max_sats: number | null;
 }
 
 const TSK_GROUPS = [
@@ -368,6 +370,9 @@ export default function AdminDashboard() {
                     style={{ width: 140 }}
                     placeholder="unchanged"
                   />
+                  {bulkTxInput && zarPerSat && (
+                    <span className="muted" style={{ fontSize: 11 }}>≈ {formatZAR(parseInt(bulkTxInput) || 0, zarPerSat)}</span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <label className="muted" style={{ fontSize: 12 }}>Per day (sats)</label>
@@ -379,6 +384,9 @@ export default function AdminDashboard() {
                     style={{ width: 140 }}
                     placeholder="unchanged"
                   />
+                  {bulkDayInput && zarPerSat && (
+                    <span className="muted" style={{ fontSize: 11 }}>≈ {formatZAR(parseInt(bulkDayInput) || 0, zarPerSat)}</span>
+                  )}
                 </div>
                 <button type="submit" className="btn-primary" disabled={bulkSaving}>{bulkSaving ? '…' : 'Save'}</button>
                 <button type="button" className="btn-ghost" onClick={() => setShowBulkLimits(false)}>Cancel</button>
@@ -437,6 +445,7 @@ export default function AdminDashboard() {
                   <th>Display Name</th>
                   <th>Balance</th>
                   <th>Card / LN</th>
+                  <th>Limits</th>
                   <th></th>
                 </tr>
               </thead>
@@ -462,13 +471,27 @@ export default function AdminDashboard() {
                         </>
                       )}
                     </td>
+                    <td>
+                      {u.card_id ? (
+                        <span style={{ fontSize: 12 }}>
+                          <div>
+                            {u.tx_max_sats! >= 999999999 ? 'Unlimited' : u.tx_max_sats!.toLocaleString()} / tap
+                            {zarPerSat && u.tx_max_sats! < 999999999 && <span className="muted" style={{ marginLeft: 4 }}>({formatZAR(u.tx_max_sats!, zarPerSat)})</span>}
+                          </div>
+                          <div>
+                            {u.day_max_sats! >= 999999999 ? 'Unlimited' : u.day_max_sats!.toLocaleString()} / day
+                            {zarPerSat && u.day_max_sats! < 999999999 && <span className="muted" style={{ marginLeft: 4 }}>({formatZAR(u.day_max_sats!, zarPerSat)})</span>}
+                          </div>
+                        </span>
+                      ) : <span className="muted">—</span>}
+                    </td>
                     <td style={{ textAlign: 'right' }}>
                       <span style={{ color: '#f7931a', fontSize: 13 }}>View →</span>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 32 }}>
+                  <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 32 }}>
                     {search ? 'No users match your search' : 'No users yet'}
                   </td></tr>
                 )}
