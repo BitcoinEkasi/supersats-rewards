@@ -370,6 +370,34 @@ router.patch('/users/:id/card/limits', (req, res) => {
   res.json({ tx_max_sats: newTx, day_max_sats: newDay });
 });
 
+// Overwrite spending limits for every currently-active (enabled) card at once
+router.patch('/cards/limits/bulk', (req, res) => {
+  const { tx_max_sats, day_max_sats } = req.body as { tx_max_sats?: number; day_max_sats?: number };
+  if (!tx_max_sats && !day_max_sats) {
+    res.status(400).json({ error: 'Provide tx_max_sats and/or day_max_sats' });
+    return;
+  }
+  if ((tx_max_sats != null && tx_max_sats <= 0) || (day_max_sats != null && day_max_sats <= 0)) {
+    res.status(400).json({ error: 'Limits must be positive' });
+    return;
+  }
+
+  const updated = db.transaction(() => {
+    const affected = db.prepare('SELECT user_id FROM cards WHERE enabled = 1').all() as { user_id: number }[];
+    db.prepare(
+      'UPDATE cards SET tx_max_sats = COALESCE(?, tx_max_sats), day_max_sats = COALESCE(?, day_max_sats) WHERE enabled = 1'
+    ).run(tx_max_sats ?? null, day_max_sats ?? null);
+
+    const desc = `Bulk admin update: ${tx_max_sats ? tx_max_sats + ' sats/tap' : 'tap limit unchanged'}, ${day_max_sats ? day_max_sats + ' sats/day' : 'day limit unchanged'}`;
+    const insertEvent = db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)');
+    for (const { user_id } of affected) insertEvent.run(user_id, 'limits_updated', desc);
+
+    return affected.length;
+  })();
+
+  res.json({ updated, tx_max_sats, day_max_sats });
+});
+
 router.delete('/users/:id/card', (req, res) => {
   const userId = Number(req.params.id);
   const deleted = db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);

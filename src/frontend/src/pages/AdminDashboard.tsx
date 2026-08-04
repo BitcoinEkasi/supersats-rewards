@@ -72,6 +72,10 @@ export default function AdminDashboard() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [cardsEnabled, setCardsEnabled] = useState(true);
   const [togglingCards, setTogglingCards] = useState(false);
+  const [showBulkLimits, setShowBulkLimits] = useState(false);
+  const [bulkTxInput, setBulkTxInput] = useState('');
+  const [bulkDayInput, setBulkDayInput] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -101,6 +105,38 @@ export default function AdminDashboard() {
       return;
     }
     setCardsEnabledRemote(false);
+  }
+
+  async function saveBulkLimits(e: React.FormEvent) {
+    e.preventDefault();
+    const tx = parseInt(bulkTxInput);
+    const day = parseInt(bulkDayInput);
+    if ((!bulkTxInput && !bulkDayInput) || (bulkTxInput && (!tx || tx <= 0)) || (bulkDayInput && (!day || day <= 0))) {
+      alert('Enter at least one valid positive value');
+      return;
+    }
+    const activeCount = users.filter((u) => u.card_enabled).length;
+    if (!window.confirm(`Overwrite spending limits for all ${activeCount} active card(s)? This cannot be undone.`)) return;
+    setBulkSaving(true);
+    try {
+      const res = await fetch('/api/admin/cards/limits/bulk', {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(bulkTxInput ? { tx_max_sats: tx } : {}),
+          ...(bulkDayInput ? { day_max_sats: day } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      alert(`Updated limits on ${data.updated} active card(s).`);
+      setShowBulkLimits(false);
+      setBulkTxInput('');
+      setBulkDayInput('');
+      load();
+    } finally {
+      setBulkSaving(false);
+    }
   }
 
   async function loadBlinkTxs() {
@@ -309,8 +345,46 @@ export default function AdminDashboard() {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span />
-            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-ghost" onClick={() => setShowBulkLimits((v) => !v)}>Set Limits for All Active Cards</button>
+              <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
+            </div>
           </div>
+
+          {showBulkLimits && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <h3 style={{ marginBottom: 12 }}>Set Limits for All Active Cards</h3>
+              <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                Overwrites the tap/day limit on every currently active card. Leave a field blank to leave that limit unchanged.
+              </p>
+              <form onSubmit={saveBulkLimits} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label className="muted" style={{ fontSize: 12 }}>Per tap (sats)</label>
+                  <input
+                    type="number"
+                    value={bulkTxInput}
+                    onChange={(e) => setBulkTxInput(e.target.value)}
+                    min="1"
+                    style={{ width: 140 }}
+                    placeholder="unchanged"
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label className="muted" style={{ fontSize: 12 }}>Per day (sats)</label>
+                  <input
+                    type="number"
+                    value={bulkDayInput}
+                    onChange={(e) => setBulkDayInput(e.target.value)}
+                    min="1"
+                    style={{ width: 140 }}
+                    placeholder="unchanged"
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={bulkSaving}>{bulkSaving ? '…' : 'Save'}</button>
+                <button type="button" className="btn-ghost" onClick={() => setShowBulkLimits(false)}>Cancel</button>
+              </form>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input
