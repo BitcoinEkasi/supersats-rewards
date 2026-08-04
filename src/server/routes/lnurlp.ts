@@ -20,7 +20,7 @@ interface User {
 router.get('/:username', (req, res) => {
   const { username } = req.params;
   const user = db
-    .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1')
+    .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1 AND archived_at IS NULL')
     .get(username) as User | undefined;
 
   if (!user) {
@@ -61,7 +61,7 @@ router.get('/:username/callback', async (req, res) => {
   }
 
   const user = db
-    .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1')
+    .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1 AND archived_at IS NULL')
     .get(username) as User | undefined;
 
   if (!user) {

@@ -20,7 +20,7 @@ const DOMAIN = () => process.env.DOMAIN!;
 router.get('/dashboard', async (_req, res) => {
   const users = db.prepare(`
     SELECT u.id, u.username, u.display_name, u.balance_sats, u.ln_payout_address, u.created_at,
-           u.tsk_group, u.ac,
+           u.tsk_group, u.ac, u.archived_at,
            c.id AS card_id, c.card_id AS card_number, c.programmed_at, c.enabled AS card_enabled, c.uid,
            c.wiped_at, c.setup_token
     FROM users u
@@ -248,21 +248,38 @@ router.post('/users/:id/withdraw-all', async (req, res) => {
   res.json({ withdrawn_sats: amount, balance_sats: 0 });
 });
 
-// Delete user (requires zero balance; also removes card and transactions)
-router.delete('/users/:id', (req, res) => {
+// Archive user: drain any remaining balance to the shared wallet ledger, disable
+// their card, mark inactive. Users are never permanently deleted.
+router.post('/users/:id/archive', async (req, res) => {
   const userId = Number(req.params.id);
-  const user = db.prepare('SELECT id, balance_sats FROM users WHERE id = ?').get(userId) as any;
+  const user = db.prepare('SELECT id, balance_sats, archived_at FROM users WHERE id = ?').get(userId) as any;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-  if (user.balance_sats > 0) {
-    res.status(400).json({ error: 'Withdraw all funds before deleting this user' });
-    return;
-  }
+  if (user.archived_at) { res.status(400).json({ error: 'User is already archived' }); return; }
+
+  const zarPerSat = user.balance_sats > 0 ? await getZarPerSat() : null;
   db.transaction(() => {
-    db.prepare('DELETE FROM transactions WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM cards WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    if (user.balance_sats > 0) {
+      db.prepare('UPDATE users SET balance_sats = 0 WHERE id = ?').run(userId);
+      db.prepare('INSERT INTO transactions (user_id, type, amount_sats, description, zar_per_sat) VALUES (?, ?, ?, ?, ?)').run(
+        userId, 'spend', user.balance_sats, 'Archived — balance drained', zarPerSat
+      );
+    }
+    const cardUpdate = db.prepare('UPDATE cards SET enabled = 0 WHERE user_id = ?').run(userId);
+    db.prepare('UPDATE users SET archived_at = unixepoch() WHERE id = ?').run(userId);
+    const parts = [user.balance_sats > 0 ? `drained ${user.balance_sats} sats` : null, cardUpdate.changes ? 'card disabled' : null].filter(Boolean);
+    db.prepare('INSERT INTO card_events (user_id, event, description) VALUES (?, ?, ?)').run(
+      userId, 'archived', parts.length ? `Archived — ${parts.join(', ')}` : 'Archived'
+    );
   })();
-  res.json({ deleted: true });
+  res.json({ archived: true });
+});
+
+router.post('/users/:id/unarchive', (req, res) => {
+  const userId = Number(req.params.id);
+  const updated = db.prepare('UPDATE users SET archived_at = NULL WHERE id = ?').run(userId);
+  if (updated.changes === 0) { res.status(404).json({ error: 'User not found' }); return; }
+  db.prepare('INSERT INTO card_events (user_id, event) VALUES (?, ?)').run(userId, 'unarchived');
+  res.json({ archived: false });
 });
 
 // ── Cards ─────────────────────────────────────────────────────────────────────

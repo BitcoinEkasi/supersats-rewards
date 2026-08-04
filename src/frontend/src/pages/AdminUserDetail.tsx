@@ -16,6 +16,7 @@ interface UserDetail {
   magic_link_url: string;
   ln_address_enabled: number;
   ln_payout_address: string | null;
+  archived_at: number | null;
   card: {
     id: number;
     card_id: string | null;
@@ -122,22 +123,27 @@ export default function AdminUserDetail() {
     load();
   }
 
-  async function deleteUser() {
+  async function archiveUser() {
     if (!user) return;
-    if (user.balance_sats > 0) {
-      alert('Withdraw all funds before deleting this user.');
-      return;
-    }
-    const input = window.prompt(
-      `This will permanently delete ${user.display_name} and all their data.\n\nType DELETE to confirm:`
-    );
-    if (input !== 'DELETE') return;
-    const res = await fetch(`/api/admin/users/${id}`, {
-      method: 'DELETE',
+    const msg = user.balance_sats > 0
+      ? `Archive ${user.display_name}? This drains ${user.balance_sats.toLocaleString()} sats to the shared wallet, disables their card, and marks them inactive. This can be undone.`
+      : `Archive ${user.display_name}? This disables their card and marks them inactive. This can be undone.`;
+    if (!confirm(msg)) return;
+    const res = await fetch(`/api/admin/users/${id}/archive`, {
+      method: 'POST',
       headers: authHeaders(),
     });
     if (!res.ok) { const d = await res.json(); alert(d.error); return; }
     navigate('/admin');
+  }
+
+  async function unarchiveUser() {
+    const res = await fetch(`/api/admin/users/${id}/unarchive`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
   }
 
   async function credit(e: React.FormEvent) {
@@ -681,6 +687,8 @@ export default function AdminUserDetail() {
                   enabled:    { label: 'Enabled',         color: '#16a34a' },
                   disabled:   { label: 'Disabled',        color: '#dc2626' },
                   auto_disabled: { label: 'Auto-disabled (velocity limit)', color: '#dc2626' },
+                  archived:   { label: 'Archived',   color: '#dc2626' },
+                  unarchived: { label: 'Unarchived', color: '#16a34a' },
                 };
                 const s = labelMap[e.event] ?? { label: e.event, color: '#888' };
                 return (
@@ -709,19 +717,24 @@ export default function AdminUserDetail() {
       {/* Danger zone */}
       <div className="card" style={{ marginTop: 16, borderColor: '#5a1a1a' }}>
         <h2 style={{ fontSize: 16, marginBottom: 8, color: '#f87171' }}>Danger Zone</h2>
-        <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-          Permanently deletes this user and all their data. Withdraw all funds first.
-        </p>
-        <button
-          className="btn-danger"
-          onClick={deleteUser}
-          disabled={user.balance_sats > 0}
-          title={user.balance_sats > 0 ? 'Withdraw all funds before deleting this user' : ''}
-        >
-          Delete User
-        </button>
-        {user.balance_sats > 0 && (
-          <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Withdraw all funds first to enable this button.</p>
+        {user.archived_at ? (
+          <>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+              Archived on {formatTs(user.archived_at)}. Hidden from the main list and inactive.
+            </p>
+            <button className="btn-primary" style={{ background: '#16a34a' }} onClick={unarchiveUser}>
+              Unarchive User
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+              Archiving drains any remaining balance, disables their card, and marks them inactive. Users are never permanently deleted.
+            </p>
+            <button className="btn-danger" onClick={archiveUser}>
+              Archive User
+            </button>
+          </>
         )}
       </div>
     </div>

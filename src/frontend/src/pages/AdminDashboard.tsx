@@ -19,6 +19,7 @@ interface UserRow {
   setup_token: string | null;
   tsk_group: string | null;
   ac: boolean;
+  archived_at: number | null;
 }
 
 const TSK_GROUPS = [
@@ -29,6 +30,7 @@ const TSK_GROUPS = [
   { value: 'SHARKS', label: 'Sharks' },
   { value: 'FREE_SURFERS', label: 'Free Surfers' },
   { value: '__AC__', label: 'Assistant Coaches' },
+  { value: '__ARCHIVED__', label: 'Archived' },
 ];
 
 interface BulkLimitEvent {
@@ -297,6 +299,8 @@ export default function AdminDashboard() {
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     if (q && !u.username.includes(q) && !u.display_name.toLowerCase().includes(q)) return false;
+    if (groupFilter === '__ARCHIVED__') return !!u.archived_at;
+    if (u.archived_at) return false;
     if (groupFilter === '__AC__') return u.ac;
     if (groupFilter) return u.tsk_group === groupFilter;
     return true;
