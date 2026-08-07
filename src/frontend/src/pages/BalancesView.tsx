@@ -124,8 +124,8 @@ export default function BalancesView() {
     );
   }
 
-  const active = users.filter(u => u.card_status === 'active');
-  const filtered = active.filter(u => {
+  const visible = users.filter(u => u.card_status === 'active' || u.card_status === 'disabled');
+  const filtered = visible.filter(u => {
     if (!u.display_name.toLowerCase().includes(search.toLowerCase())) return false;
     if (groupFilter === '__AC__') return u.ac;
     if (groupFilter) return u.tsk_group === groupFilter;
@@ -138,7 +138,7 @@ export default function BalancesView() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontSize: 22 }}>⚡</span>
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f0f0f0' }}>TSK Balances</h1>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{active.length} participants</span>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{visible.length} participants</span>
       </div>
 
       {/* Search + Group filter */}
@@ -177,12 +177,19 @@ export default function BalancesView() {
           <div
             key={u.id}
             className="card"
-            style={{ padding: '12px 14px', cursor: 'pointer' }}
+            style={{
+              padding: '12px 14px',
+              cursor: 'pointer',
+              ...(u.card_status === 'disabled' ? { border: '1px solid #742a2a', background: 'rgba(116,42,42,0.12)' } : {}),
+            }}
             onClick={() => openDetail(u)}
           >
             {/* Row 1: name left, sats right */}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3, flex: 1 }}>{u.display_name}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f0f0', lineHeight: 1.3, flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {u.display_name}
+                {u.card_status === 'disabled' && <span className="badge badge-red">Blocked</span>}
+              </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#f7931a', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 ⚡ {u.balance_sats.toLocaleString()} sats
               </div>
