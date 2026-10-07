@@ -30,8 +30,13 @@ const TSK_GROUPS = [
   { value: 'SHARKS', label: 'Sharks' },
   { value: 'FREE_SURFERS', label: 'Free Surfers' },
   { value: '__AC__', label: 'Assistant Coaches' },
+  { value: '__BLOCKED__', label: 'Blocked Cards' },
   { value: '__ARCHIVED__', label: 'Archived' },
 ];
+
+function isCardBlocked(u: UserRow) {
+  return !!u.card_id && !u.setup_token && !!u.programmed_at && !u.wiped_at && !u.card_enabled;
+}
 
 interface BulkLimitEvent {
   id: number;
@@ -292,7 +297,7 @@ export default function AdminDashboard() {
     if (!row.card_id) return <span className="badge" style={{ background: '#333', color: '#aaa' }}>No card</span>;
     if (row.setup_token || !row.programmed_at) return <span className="badge badge-yellow">Awaiting programming</span>;
     if (row.wiped_at) return <span className="badge" style={{ background: '#b45309', color: '#fff' }}>Wiped</span>;
-    if (!row.card_enabled) return <span className="badge badge-red">Disabled</span>;
+    if (isCardBlocked(row)) return <span className="badge badge-red">Disabled</span>;
     return <span className="badge badge-green">Active</span>;
   }
 
@@ -302,9 +307,10 @@ export default function AdminDashboard() {
     if (groupFilter === '__ARCHIVED__') return !!u.archived_at;
     if (u.archived_at) return false;
     if (groupFilter === '__AC__') return u.ac;
+    if (groupFilter === '__BLOCKED__') return isCardBlocked(u);
     if (groupFilter) return u.tsk_group === groupFilter;
     return true;
-  });
+  }).sort((a, b) => b.balance_sats - a.balance_sats);
 
   const activeUserCount = users.filter((u) => !u.archived_at).length;
 
