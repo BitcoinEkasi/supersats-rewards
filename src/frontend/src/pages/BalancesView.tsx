@@ -25,6 +25,7 @@ const TSK_GROUPS = [
   { value: 'SHARKS', label: 'Sharks' },
   { value: 'FREE_SURFERS', label: 'Free Surfers' },
   { value: '__AC__', label: 'Assistant Coaches' },
+  { value: '__BLOCKED__', label: 'Blocked Cards' },
 ];
 
 interface UserDetail {
@@ -128,9 +129,10 @@ export default function BalancesView() {
   const filtered = visible.filter(u => {
     if (!u.display_name.toLowerCase().includes(search.toLowerCase())) return false;
     if (groupFilter === '__AC__') return u.ac;
+    if (groupFilter === '__BLOCKED__') return u.card_status === 'disabled';
     if (groupFilter) return u.tsk_group === groupFilter;
     return true;
-  });
+  }).sort((a, b) => b.balance_sats - a.balance_sats);
 
   return (
     <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 12px 40px' }}>
