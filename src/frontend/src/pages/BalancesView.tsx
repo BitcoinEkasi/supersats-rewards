@@ -140,7 +140,7 @@ export default function BalancesView() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontSize: 22 }}>⚡</span>
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f0f0f0' }}>TSK Balances</h1>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{visible.length} participants</span>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{filtered.length} participants</span>
       </div>
 
       {/* Search + Group filter */}
