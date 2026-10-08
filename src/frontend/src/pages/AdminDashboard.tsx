@@ -312,8 +312,6 @@ export default function AdminDashboard() {
     return true;
   }).sort((a, b) => b.balance_sats - a.balance_sats);
 
-  const activeUserCount = users.filter((u) => !u.archived_at).length;
-
   const totalUserBalance = users.reduce((s, u) => s + u.balance_sats, 0);
   const reserveSats = systemBalance !== null ? systemBalance - totalUserBalance : null;
 
@@ -434,7 +432,7 @@ export default function AdminDashboard() {
               transition: 'color 0.15s',
             }}
           >
-            {t === 'users' ? `Users (${activeUserCount})` : t === 'movements' ? 'Movements' : 'Blink Account'}
+            {t === 'users' ? `Users (${filtered.length})` : t === 'movements' ? 'Movements' : 'Blink Account'}
           </button>
         ))}
       </div>
