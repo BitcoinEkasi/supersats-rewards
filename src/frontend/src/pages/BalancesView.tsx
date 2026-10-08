@@ -15,6 +15,7 @@ interface UserBalance {
   jc_level: number | null;
   tsk_group: string | null;
   ac: boolean;
+  archived: boolean;
 }
 
 const TSK_GROUPS = [
@@ -26,6 +27,7 @@ const TSK_GROUPS = [
   { value: 'FREE_SURFERS', label: 'Free Surfers' },
   { value: '__AC__', label: 'Assistant Coaches' },
   { value: '__BLOCKED__', label: 'Blocked Cards' },
+  { value: '__ARCHIVED__', label: 'Archived' },
 ];
 
 interface UserDetail {
@@ -128,6 +130,8 @@ export default function BalancesView() {
   const visible = users.filter(u => u.card_status === 'active' || u.card_status === 'disabled');
   const filtered = visible.filter(u => {
     if (!u.display_name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (groupFilter === '__ARCHIVED__') return u.archived;
+    if (u.archived) return false;
     if (groupFilter === '__AC__') return u.ac;
     if (groupFilter === '__BLOCKED__') return u.card_status === 'disabled';
     if (groupFilter) return u.tsk_group === groupFilter;

@@ -19,11 +19,11 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(`
     SELECT u.id, u.display_name, u.username, u.balance_sats,
-           u.division, u.tsk_level, u.jc_level, u.tsk_group, u.ac,
+           u.division, u.tsk_level, u.jc_level, u.tsk_group, u.ac, u.archived_at,
            c.card_id, c.programmed_at, c.enabled, c.setup_token, c.wiped_at
     FROM users u
     LEFT JOIN cards c ON c.user_id = u.id
-    WHERE u.username != 'tsk00000' AND u.archived_at IS NULL
+    WHERE u.username != 'tsk00000'
     ORDER BY u.balance_sats DESC, u.display_name ASC
   `).all() as any[];
 
@@ -46,6 +46,7 @@ router.get('/', (req, res) => {
       jc_level: r.jc_level ?? null,
       tsk_group: r.tsk_group ?? null,
       ac: !!r.ac,
+      archived: !!r.archived_at,
     };
   });
 
