@@ -29,6 +29,9 @@ async function gql<T>(query: string, variables?: Record<string, unknown>): Promi
 
 // ── createInvoice ─────────────────────────────────────────────────────────────
 
+// Matches the pending_refills expiry in routes/lnurlp.ts
+const INVOICE_EXPIRY_MINS = 60;
+
 interface InvoiceData {
   lnInvoiceCreate: {
     errors: { message: string }[];
@@ -47,7 +50,7 @@ export async function createInvoice(
         invoice { paymentHash paymentRequest }
       }
     }`,
-    { input: { walletId: WALLET_ID, amount: amountSats, memo } }
+    { input: { walletId: WALLET_ID, amount: amountSats, memo, expiresIn: INVOICE_EXPIRY_MINS } }
   );
   if (data.lnInvoiceCreate.errors.length) {
     throw new Error(data.lnInvoiceCreate.errors.map((e) => e.message).join(', '));
@@ -237,8 +240,32 @@ export async function getTransactions(first = 50, after?: string): Promise<Blink
 
 // ── WebSocket subscription ────────────────────────────────────────────────────
 
+// Extracts a received invoice payment from a myUpdates update, or null.
+export function parsePaymentUpdate(update: any): { paymentHash: string; sats: number } | null {
+  if (
+    update?.__typename === 'LnUpdate' &&
+    update.status === 'PAID' &&
+    update.transaction?.settlementAmount > 0
+  ) {
+    return { paymentHash: update.paymentHash, sats: Math.abs(update.transaction.settlementAmount) };
+  }
+  // Payers on Blink settle inside Blink, so their invoice payments arrive as
+  // IntraLedgerUpdate, not LnUpdate
+  if (
+    update?.__typename === 'IntraLedgerUpdate' &&
+    update.txNotificationType === 'IntraLedgerReceipt' &&
+    update.transaction?.status === 'SUCCESS' &&
+    update.transaction.settlementAmount > 0 &&
+    update.transaction.initiationVia?.paymentHash
+  ) {
+    return { paymentHash: update.transaction.initiationVia.paymentHash, sats: Math.abs(update.transaction.settlementAmount) };
+  }
+  return null;
+}
+
 export function startBlinkSubscription(
-  onPayment: (paymentHash: string, amountSats: number) => void
+  onPayment: (paymentHash: string, amountSats: number) => void,
+  onConnected?: () => void
 ): () => void {
   const wsClient = createClient({
     url: WS_URL,
@@ -249,7 +276,10 @@ export function startBlinkSubscription(
     retryAttempts: Infinity,
     shouldRetry: () => true,
     on: {
-      connected: () => console.log('[blink-ws] connected'),
+      connected: () => {
+        console.log('[blink-ws] connected');
+        onConnected?.();
+      },
       closed: () => console.log('[blink-ws] closed'),
       error: (err) => console.error('[blink-ws] error', err),
     },
@@ -270,6 +300,16 @@ export function startBlinkSubscription(
                 settlementCurrency
               }
             }
+            ... on IntraLedgerUpdate {
+              txNotificationType
+              transaction {
+                status
+                settlementAmount
+                initiationVia {
+                  ... on InitiationViaLn { paymentHash }
+                }
+              }
+            }
           }
         }
       }`,
@@ -277,13 +317,11 @@ export function startBlinkSubscription(
     {
       next(data) {
         const update = (data as any)?.data?.myUpdates?.update;
-        if (
-          update?.__typename === 'LnUpdate' &&
-          update.status === 'PAID' &&
-          update.transaction?.settlementAmount > 0
-        ) {
-          const sats: number = Math.abs(update.transaction.settlementAmount);
-          onPayment(update.paymentHash as string, sats);
+        const payment = parsePaymentUpdate(update);
+        if (payment) {
+          onPayment(payment.paymentHash, payment.sats);
+        } else if (update && !['Price', 'RealtimePrice', 'LnUpdate', 'IntraLedgerUpdate'].includes(update.__typename)) {
+          console.log(`[blink-ws] ignored ${update.__typename} update`);
         }
       },
       error(err) {

@@ -18,7 +18,8 @@ interface User {
 // ── GET /.well-known/lnurlp/:username ─────────────────────────────────────────
 
 router.get('/:username', (req, res) => {
-  const { username } = req.params;
+  // Usernames are stored lowercase; wallets may send TSK00021@…
+  const username = req.params.username.toLowerCase();
   const user = db
     .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1 AND archived_at IS NULL')
     .get(username) as User | undefined;
@@ -46,7 +47,8 @@ router.get('/:username', (req, res) => {
 // ── GET /lnurlp/:username/callback ────────────────────────────────────────────
 
 router.get('/:username/callback', async (req, res) => {
-  const { username } = req.params;
+  // Usernames are stored lowercase; wallets may send TSK00021@…
+  const username = req.params.username.toLowerCase();
   const amountStr = req.query.amount as string | undefined;
 
   if (!amountStr) {

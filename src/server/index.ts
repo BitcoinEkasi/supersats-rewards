@@ -11,6 +11,7 @@ import { db } from './db/index.js';
 import { startBlinkSubscription, payInvoice } from './services/blink.js';
 import { resolveLnAddress } from './services/lnurl.js';
 import { getZarPerSat } from './services/zarPrice.js';
+import { creditRefill, reconcileRefills, REFILL_GRACE_SECS } from './services/refills.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -47,29 +48,13 @@ function seedAdmin() {
 // ── Payment received handler ──────────────────────────────────────────────────
 
 async function onPaymentReceived(paymentHash: string, amountSats: number) {
-  const zarPerSat = await getZarPerSat();
-
-  const now = Math.floor(Date.now() / 1000);
-  const pending = db
-    .prepare('SELECT * FROM pending_refills WHERE payment_hash = ? AND expires_at > ?')
-    .get(paymentHash, now) as
-    | { id: number; user_id: number; amount_sats: number }
-    | undefined;
-
-  if (pending) {
-    db.transaction(() => {
-      db.prepare('UPDATE users SET balance_sats = balance_sats + ? WHERE id = ?').run(
-        amountSats,
-        pending.user_id
-      );
-      db.prepare(
-        'INSERT INTO transactions (user_id, type, amount_sats, payment_hash, description, zar_per_sat) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(pending.user_id, 'refill', amountSats, paymentHash, 'LN Address payment', zarPerSat);
-      db.prepare('DELETE FROM pending_refills WHERE payment_hash = ?').run(paymentHash);
-    })();
-    console.log(`[payment] Credited ${amountSats} sats to user #${pending.user_id}`);
+  const refillUserId = await creditRefill(paymentHash, amountSats);
+  if (refillUserId !== null) {
+    console.log(`[payment] Credited ${amountSats} sats to user #${refillUserId}`);
     return;
   }
+
+  const zarPerSat = await getZarPerSat();
 
   // Check payout batches (month-end reward distribution)
   const batch = db
@@ -176,12 +161,18 @@ if (isProd) {
   });
 }
 
-// ── Cleanup janitor: delete expired pending records ───────────────────────────
+// ── Cleanup janitor: reconcile, then delete expired pending records ───────────
 
-setInterval(() => {
+// Credit any LN address payments whose WebSocket event was missed
+function runReconcile() {
+  return reconcileRefills().catch((err) => console.error('[reconcile] error:', err));
+}
+
+setInterval(async () => {
+  await runReconcile();
   const now = Math.floor(Date.now() / 1000);
   db.prepare('DELETE FROM pending_withdrawals WHERE expires_at < ?').run(now);
-  db.prepare('DELETE FROM pending_refills WHERE expires_at < ?').run(now);
+  db.prepare('DELETE FROM pending_refills WHERE expires_at < ?').run(now - REFILL_GRACE_SECS);
 }, 5 * 60 * 1000);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
@@ -190,5 +181,5 @@ seedAdmin();
 
 app.listen(PORT, () => {
   console.log(`[server] Listening on port ${PORT}`);
-  startBlinkSubscription(onPaymentReceived);
+  startBlinkSubscription(onPaymentReceived, runReconcile);
 });
