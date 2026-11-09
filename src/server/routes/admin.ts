@@ -10,6 +10,7 @@ import { resolveLnAddress } from '../services/lnurl.js';
 import { getZarPerSat } from '../services/zarPrice.js';
 import { blinkCounterPartyByPaymentHash, txToMovement, lnPayoutToMovement } from '../services/movements.js';
 import { debitUser, DebitError } from '../services/debit.js';
+import { MAX_RECEIVE_SATS_CEILING, MAX_RATE_PER_MIN_CEILING } from '../services/receiveLimits.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -37,12 +38,16 @@ router.get('/dashboard', async (_req, res) => {
   }
 
   const settings = db.prepare(
-    'SELECT cards_enabled, velocity_max_taps, velocity_window_secs FROM system_settings WHERE id = 1'
-  ).get() as { cards_enabled: number; velocity_max_taps: number; velocity_window_secs: number };
+    'SELECT cards_enabled, velocity_max_taps, velocity_window_secs, ln_receive_max_sats, ln_invoice_rate_per_min FROM system_settings WHERE id = 1'
+  ).get() as {
+    cards_enabled: number; velocity_max_taps: number; velocity_window_secs: number;
+    ln_receive_max_sats: number; ln_invoice_rate_per_min: number;
+  };
 
   res.json({
     users, systemBalance, cardsEnabled: !!settings.cards_enabled,
     velocityMaxTaps: settings.velocity_max_taps, velocityWindowSecs: settings.velocity_window_secs,
+    lnReceiveMaxSats: settings.ln_receive_max_sats, lnInvoiceRatePerMin: settings.ln_invoice_rate_per_min,
   });
 });
 
@@ -541,6 +546,22 @@ router.post('/system-settings/velocity-limit', (req, res) => {
   }
   db.prepare('UPDATE system_settings SET velocity_max_taps = ?, velocity_window_secs = ? WHERE id = 1').run(max_taps, window_secs);
   res.json({ velocity_max_taps: max_taps, velocity_window_secs: window_secs });
+});
+
+// Lightning-address receive limits: max per incoming payment, and invoice
+// requests per minute per payer IP. Card spending limits are separate.
+router.post('/system-settings/receive-limits', (req, res) => {
+  const { max_sats, rate_per_min } = req.body as { max_sats?: number; rate_per_min?: number };
+  if (!Number.isInteger(max_sats) || max_sats! < 1 || max_sats! > MAX_RECEIVE_SATS_CEILING) {
+    res.status(400).json({ error: `max_sats must be a whole number from 1 to ${MAX_RECEIVE_SATS_CEILING.toLocaleString('en-US')}` });
+    return;
+  }
+  if (!Number.isInteger(rate_per_min) || rate_per_min! < 1 || rate_per_min! > MAX_RATE_PER_MIN_CEILING) {
+    res.status(400).json({ error: `rate_per_min must be a whole number from 1 to ${MAX_RATE_PER_MIN_CEILING}` });
+    return;
+  }
+  db.prepare('UPDATE system_settings SET ln_receive_max_sats = ?, ln_invoice_rate_per_min = ? WHERE id = 1').run(max_sats, rate_per_min);
+  res.json({ ln_receive_max_sats: max_sats, ln_invoice_rate_per_min: rate_per_min });
 });
 
 // ── POST /api/admin/users/:id/ln-payout ──────────────────────────────────────

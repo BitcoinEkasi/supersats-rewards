@@ -12,6 +12,7 @@ import { startBlinkSubscription, payInvoice } from './services/blink.js';
 import { resolveLnAddress } from './services/lnurl.js';
 import { getZarPerSat } from './services/zarPrice.js';
 import { creditRefill, reconcileRefills, REFILL_GRACE_SECS } from './services/refills.js';
+import { sweepInvoiceRequests } from './services/rateLimit.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -112,6 +113,10 @@ async function onPaymentReceived(paymentHash: string, amountSats: number) {
 
 const app = express();
 
+// nginx is the only client (the port is bound to 127.0.0.1), so trust its one
+// hop: req.ip becomes the payer's IP from X-Forwarded-For
+app.set('trust proxy', 1);
+
 app.use(
   helmet({
     contentSecurityPolicy: false, // frontend sets its own
@@ -173,6 +178,7 @@ setInterval(async () => {
   const now = Math.floor(Date.now() / 1000);
   db.prepare('DELETE FROM pending_withdrawals WHERE expires_at < ?').run(now);
   db.prepare('DELETE FROM pending_refills WHERE expires_at < ?').run(now - REFILL_GRACE_SECS);
+  sweepInvoiceRequests();
 }, 5 * 60 * 1000);
 
 // ── Start ─────────────────────────────────────────────────────────────────────

@@ -97,6 +97,10 @@ export default function AdminDashboard() {
   const [velocityMaxTapsInput, setVelocityMaxTapsInput] = useState('3');
   const [velocityWindowInput, setVelocityWindowInput] = useState('5');
   const [velocitySaving, setVelocitySaving] = useState(false);
+  const [showReceiveLimits, setShowReceiveLimits] = useState(false);
+  const [receiveMaxInput, setReceiveMaxInput] = useState('500000');
+  const [receiveRateInput, setReceiveRateInput] = useState('10');
+  const [receiveSaving, setReceiveSaving] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -106,6 +110,8 @@ export default function AdminDashboard() {
     setCardsEnabled(data.cardsEnabled ?? true);
     if (data.velocityMaxTaps) setVelocityMaxTapsInput(String(data.velocityMaxTaps));
     if (data.velocityWindowSecs) setVelocityWindowInput(String(Math.round(data.velocityWindowSecs / 60)));
+    if (data.lnReceiveMaxSats) setReceiveMaxInput(String(data.lnReceiveMaxSats));
+    if (data.lnInvoiceRatePerMin) setReceiveRateInput(String(data.lnInvoiceRatePerMin));
   }
 
   async function setCardsEnabledRemote(enabled: boolean) {
@@ -150,6 +156,29 @@ export default function AdminDashboard() {
       setShowVelocitySettings(false);
     } finally {
       setVelocitySaving(false);
+    }
+  }
+
+  async function saveReceiveLimits(e: React.FormEvent) {
+    e.preventDefault();
+    const maxSats = parseInt(receiveMaxInput);
+    const ratePerMin = parseInt(receiveRateInput);
+    if (!maxSats || maxSats <= 0 || !ratePerMin || ratePerMin <= 0) {
+      alert('Enter valid positive values');
+      return;
+    }
+    setReceiveSaving(true);
+    try {
+      const res = await fetch('/api/admin/system-settings/receive-limits', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_sats: maxSats, rate_per_min: ratePerMin }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      setShowReceiveLimits(false);
+    } finally {
+      setReceiveSaving(false);
     }
   }
 
@@ -369,6 +398,7 @@ export default function AdminDashboard() {
             </button>
           )}
           <button className="btn-ghost" onClick={() => setShowVelocitySettings((v) => !v)}>🔒 Auto-Lock Settings</button>
+          <button className="btn-ghost" onClick={() => setShowReceiveLimits((v) => !v)}>⚡ Receive Limits</button>
           <button className="btn-ghost" onClick={logout}>Logout</button>
         </div>
       </div>
@@ -402,6 +432,45 @@ export default function AdminDashboard() {
             </div>
             <button type="submit" className="btn-primary" disabled={velocitySaving}>{velocitySaving ? '…' : 'Save'}</button>
             <button type="button" className="btn-ghost" onClick={() => setShowVelocitySettings(false)}>Cancel</button>
+          </form>
+        </div>
+      )}
+
+      {showReceiveLimits && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 style={{ marginBottom: 8 }}>Receive Limits</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+            Applies to payments sent to participants' Lightning addresses (e.g. tsk00021@…) from any wallet. Card spending limits are separate.
+            Changes take effect immediately.
+          </p>
+          <form onSubmit={saveReceiveLimits} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Max per payment (sats)</label>
+              <input
+                type="number"
+                value={receiveMaxInput}
+                onChange={(e) => setReceiveMaxInput(e.target.value)}
+                min="1"
+                max="10000000"
+                style={{ width: 130 }}
+              />
+              {zarPerSat && parseInt(receiveMaxInput) > 0 && (
+                <span className="muted" style={{ fontSize: 11 }}>≈ {formatZAR(parseInt(receiveMaxInput), zarPerSat)}</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Payment requests per minute, per payer</label>
+              <input
+                type="number"
+                value={receiveRateInput}
+                onChange={(e) => setReceiveRateInput(e.target.value)}
+                min="1"
+                max="600"
+                style={{ width: 100 }}
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={receiveSaving}>{receiveSaving ? '…' : 'Save'}</button>
+            <button type="button" className="btn-ghost" onClick={() => setShowReceiveLimits(false)}>Cancel</button>
           </form>
         </div>
       )}

@@ -202,6 +202,13 @@ if (!settingsColumns.includes('velocity_max_taps')) {
 if (!settingsColumns.includes('velocity_window_secs')) {
   db.exec('ALTER TABLE system_settings ADD COLUMN velocity_window_secs INTEGER NOT NULL DEFAULT 300');
 }
+// Lightning-address receive limits (admin-adjustable; card spend limits are separate)
+if (!settingsColumns.includes('ln_receive_max_sats')) {
+  db.exec('ALTER TABLE system_settings ADD COLUMN ln_receive_max_sats INTEGER NOT NULL DEFAULT 500000');
+}
+if (!settingsColumns.includes('ln_invoice_rate_per_min')) {
+  db.exec('ALTER TABLE system_settings ADD COLUMN ln_invoice_rate_per_min INTEGER NOT NULL DEFAULT 10');
+}
 
 // Tap log for the velocity-limit security rule — one row per CMAC-verified tap
 db.exec(`

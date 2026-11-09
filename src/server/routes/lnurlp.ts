@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { createInvoice } from '../services/blink.js';
+import { getReceiveSettings, validateAmount, MIN_RECEIVE_SATS } from '../services/receiveLimits.js';
+import { allowInvoiceRequest } from '../services/rateLimit.js';
 
 const router = Router();
 
 const DOMAIN = () => process.env.DOMAIN!;
-const MIN_SENDABLE = 1000;       // msats
-const MAX_SENDABLE = 10_000_000; // msats (10,000 sats)
 
 interface User {
   id: number;
@@ -38,8 +38,8 @@ router.get('/:username', (req, res) => {
   res.json({
     tag: 'payRequest',
     callback: `${proto}://${DOMAIN()}/lnurlp/${user.username}/callback`,
-    maxSendable: MAX_SENDABLE,
-    minSendable: MIN_SENDABLE,
+    maxSendable: getReceiveSettings().maxSats * 1000,
+    minSendable: MIN_RECEIVE_SATS * 1000,
     metadata,
   });
 });
@@ -50,17 +50,25 @@ router.get('/:username/callback', async (req, res) => {
   // Usernames are stored lowercase; wallets may send TSK00021@…
   const username = req.params.username.toLowerCase();
   const amountStr = req.query.amount as string | undefined;
+  const limits = getReceiveSettings();
+
+  // Each callback creates a Blink invoice — cap requests per payer IP
+  if (!allowInvoiceRequest(req.ip ?? 'unknown', limits.ratePerMin)) {
+    res.status(429).json({ status: 'ERROR', reason: 'Too many payment requests. Please wait a minute and try again.' });
+    return;
+  }
 
   if (!amountStr) {
     res.json({ status: 'ERROR', reason: 'Missing amount' });
     return;
   }
 
-  const amountMsats = parseInt(amountStr, 10);
-  if (isNaN(amountMsats) || amountMsats < MIN_SENDABLE || amountMsats > MAX_SENDABLE) {
-    res.json({ status: 'ERROR', reason: `Amount must be between ${MIN_SENDABLE} and ${MAX_SENDABLE} msats` });
+  const amountError = validateAmount(Number(amountStr), limits.maxSats);
+  if (amountError) {
+    res.json({ status: 'ERROR', reason: amountError });
     return;
   }
+  const amountMsats = Number(amountStr);
 
   const user = db
     .prepare('SELECT * FROM users WHERE username = ? AND ln_address_enabled = 1 AND archived_at IS NULL')
