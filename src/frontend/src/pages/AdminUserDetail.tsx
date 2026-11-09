@@ -52,6 +52,9 @@ export default function AdminUserDetail() {
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc] = useState('');
   const [creditError, setCreditError] = useState('');
+  const [debitAmount, setDebitAmount] = useState('');
+  const [debitDesc, setDebitDesc] = useState('');
+  const [debitError, setDebitError] = useState('');
   const [lnAddress, setLnAddress] = useState('');
   const [lnAmount, setLnAmount] = useState('');
   const [lnDesc, setLnDesc] = useState('');
@@ -163,6 +166,29 @@ export default function AdminUserDetail() {
     if (!res.ok) { setCreditError(data.error); return; }
     setCreditAmount('');
     setCreditDesc('');
+    load();
+  }
+
+  async function debit(e: React.FormEvent) {
+    e.preventDefault();
+    setDebitError('');
+    if (!user) return;
+    const amount = parseInt(debitAmount);
+    if (amount > user.balance_sats) {
+      setDebitError(`Exceeds balance — only ${user.balance_sats.toLocaleString()} sats available`);
+      return;
+    }
+    const zar = zarPerSat ? ` (${formatZAR(amount, zarPerSat)})` : '';
+    if (!confirm(`Debit ${amount.toLocaleString()} sats${zar} from ${user.display_name}?\n\nReason: ${debitDesc.trim()}\n\nThe sats return to the reserve.`)) return;
+    const res = await fetch(`/api/admin/users/${id}/debit`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount_sats: amount, description: debitDesc.trim() }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setDebitError(data.error); return; }
+    setDebitAmount('');
+    setDebitDesc('');
     load();
   }
 
@@ -355,6 +381,39 @@ export default function AdminUserDetail() {
             </button>
           </form>
           {creditError && <p className="error-text" style={{ marginTop: 6 }}>{creditError}</p>}
+          <form onSubmit={debit} style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <input
+                style={{ width: 110 }}
+                type="number"
+                placeholder="sats"
+                value={debitAmount}
+                onChange={(e) => setDebitAmount(e.target.value)}
+                min="1"
+                max={user.balance_sats}
+                required
+              />
+              {zarPerSat && debitAmount && parseInt(debitAmount) > 0 && (
+                <span className="muted" style={{ fontSize: 11 }}>{formatZAR(parseInt(debitAmount), zarPerSat)}</span>
+              )}
+            </div>
+            <input
+              style={{ flex: 1, minWidth: 100 }}
+              placeholder="Reason (required)"
+              value={debitDesc}
+              onChange={(e) => setDebitDesc(e.target.value)}
+              required
+            />
+            <button
+              type="submit"
+              className="btn-ghost"
+              style={{ color: '#f87171', borderColor: '#f87171' }}
+              disabled={user.balance_sats <= 0}
+            >
+              Debit
+            </button>
+          </form>
+          {debitError && <p className="error-text" style={{ marginTop: 6 }}>{debitError}</p>}
           {user.ln_payout_address && (
             <div style={{ marginTop: 10, padding: '8px 10px', background: '#1a1a2e', borderRadius: 6, border: '1px solid #2a2a4a' }}>
               <p className="muted" style={{ fontSize: 11, marginBottom: 2 }}>Payout Lightning Address</p>

@@ -4,7 +4,7 @@ import { formatZAR } from '../hooks/usePriceFeed';
 export interface Movement {
   id: string;
   created_at: number;
-  type: 'spend' | 'refill' | 'card_fee' | 'ln_payout';
+  type: 'spend' | 'refill' | 'card_fee' | 'debit' | 'ln_payout';
   direction: 'in' | 'out';
   amount_sats: number;
   from: string;

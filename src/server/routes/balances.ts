@@ -68,7 +68,7 @@ router.get('/:id/transactions', async (req, res) => {
   const txRows = db.prepare(
     'SELECT id, type, amount_sats, payment_hash, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
   ).all(userId) as {
-    id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+    id: number; type: 'spend' | 'refill' | 'card_fee' | 'debit'; amount_sats: number;
     payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
   }[];
 

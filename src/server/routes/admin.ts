@@ -9,6 +9,7 @@ import { getBalance, payInvoice, getTransactions } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
 import { getZarPerSat } from '../services/zarPrice.js';
 import { blinkCounterPartyByPaymentHash, txToMovement, lnPayoutToMovement } from '../services/movements.js';
+import { debitUser, DebitError } from '../services/debit.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -67,7 +68,7 @@ router.get('/movements', async (_req, res) => {
     ORDER BY t.created_at DESC
     LIMIT 300
   `).all() as {
-    id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+    id: number; type: 'spend' | 'refill' | 'card_fee' | 'debit'; amount_sats: number;
     payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
     display_name: string; card_number: string | null;
   }[];
@@ -158,7 +159,7 @@ router.get('/users/:id', async (req, res) => {
   const txRows = db
     .prepare('SELECT id, type, amount_sats, payment_hash, description, created_at, zar_per_sat FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(userId) as {
-      id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number;
+      id: number; type: 'spend' | 'refill' | 'card_fee' | 'debit'; amount_sats: number;
       payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null;
     }[];
 
@@ -226,6 +227,20 @@ router.post('/users/:id/credit', async (req, res) => {
 
   const updated = db.prepare('SELECT balance_sats FROM users WHERE id = ?').get(userId) as any;
   res.json({ balance_sats: updated.balance_sats });
+});
+
+// ── Debit balance ─────────────────────────────────────────────────────────────
+
+// Returns sats from a participant's balance to the reserve (e.g. repayments).
+router.post('/users/:id/debit', async (req, res) => {
+  const { amount_sats, description } = req.body as { amount_sats?: number; description?: string };
+  try {
+    const balance_sats = await debitUser(Number(req.params.id), Number(amount_sats), description ?? '');
+    res.json({ balance_sats });
+  } catch (err) {
+    if (err instanceof DebitError) { res.status(400).json({ error: err.message }); return; }
+    throw err;
+  }
 });
 
 // ── Withdraw all ──────────────────────────────────────────────────────────────

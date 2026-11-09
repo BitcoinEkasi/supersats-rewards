@@ -3,7 +3,7 @@ import { getTransactions } from './blink.js';
 export interface Movement {
   id: string;
   created_at: number;
-  type: 'spend' | 'refill' | 'card_fee' | 'ln_payout';
+  type: 'spend' | 'refill' | 'card_fee' | 'debit' | 'ln_payout';
   direction: 'in' | 'out';
   amount_sats: number;
   from: string;
@@ -32,7 +32,7 @@ export async function blinkCounterPartyByPaymentHash(maxPages = 4): Promise<Map<
 }
 
 export function txToMovement(
-  t: { id: number; type: 'spend' | 'refill' | 'card_fee'; amount_sats: number; payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null },
+  t: { id: number; type: 'spend' | 'refill' | 'card_fee' | 'debit'; amount_sats: number; payment_hash: string | null; description: string | null; created_at: number; zar_per_sat: number | null },
   cardLabel: string,
   blinkCounterParties: Map<string, string>
 ): Movement {
@@ -48,6 +48,13 @@ export function txToMovement(
     return {
       id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
       amount_sats: t.amount_sats, from: cardLabel, to: 'System (card fee)', description: t.description,
+      zar_per_sat: t.zar_per_sat,
+    };
+  }
+  if (t.type === 'debit') {
+    return {
+      id: `tx-${t.id}`, created_at: t.created_at, type: t.type, direction: 'out',
+      amount_sats: t.amount_sats, from: cardLabel, to: `Reserve — ${t.description ?? 'debit'}`, description: t.description,
       zar_per_sat: t.zar_per_sat,
     };
   }

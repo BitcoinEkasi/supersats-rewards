@@ -17,7 +17,7 @@ interface UserData {
   card_status: 'active' | 'disabled' | 'awaiting' | 'wiped' | null;
   transactions: {
     id: number;
-    type: 'spend' | 'refill';
+    type: 'spend' | 'refill' | 'card_fee' | 'debit';
     amount_sats: number;
     description: string | null;
     created_at: number;
@@ -180,7 +180,7 @@ export default function UserView() {
                 <tr key={tx.id}>
                   <td>
                     <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
-                      {tx.type === 'refill' ? '↓ refill' : '↑ spend'}
+                      {tx.type === 'refill' ? '↓ refill' : tx.type === 'debit' ? '↑ debit' : '↑ spend'}
                     </span>
                   </td>
                   <td style={{ fontWeight: 600 }}>

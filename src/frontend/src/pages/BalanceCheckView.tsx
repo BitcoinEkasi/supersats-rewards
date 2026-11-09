@@ -25,13 +25,14 @@ function txLabel(type: string) {
   if (type === 'refill') return 'Credit';
   if (type === 'spend') return 'Spend';
   if (type === 'card_fee') return 'Card fee';
+  if (type === 'debit') return 'Debit';
   if (type === 'ln_payout') return 'LN payout';
   return type;
 }
 
 function txColor(type: string) {
   if (type === 'refill') return '#4ade80';
-  if (type === 'spend' || type === 'card_fee') return '#f87171';
+  if (type === 'spend' || type === 'card_fee' || type === 'debit') return '#f87171';
   if (type === 'ln_payout') return '#facc15';
   return '#aaa';
 }

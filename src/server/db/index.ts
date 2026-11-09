@@ -128,6 +128,31 @@ if (!txColumns.includes('zar_per_sat')) {
   db.exec('ALTER TABLE transactions ADD COLUMN zar_per_sat REAL');
 }
 
+// Migration: add 'debit' to transactions type CHECK constraint (admin debits).
+// Rebuilt from the table's own definition so every column (incl. zar_per_sat)
+// carries over, and the AUTOINCREMENT high-water mark is kept so ids aren't reused.
+const txSql = (db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'`).get() as any)?.sql ?? '';
+if (!txSql.includes("'debit'")) {
+  const newSql = txSql
+    .replace("'card_fee')", "'card_fee','debit')")
+    .replace(/^CREATE TABLE "?transactions"?/, 'CREATE TABLE transactions_new');
+  if (!newSql.includes("'debit'") || !newSql.startsWith('CREATE TABLE transactions_new')) {
+    throw new Error('[db] debit migration: unexpected transactions schema, refusing to migrate');
+  }
+  const cols = (db.prepare(`PRAGMA table_info(transactions)`).all() as { name: string }[]).map(c => c.name).join(', ');
+  db.transaction(() => {
+    const seq = (db.prepare(`SELECT seq FROM sqlite_sequence WHERE name = 'transactions'`).get() as { seq: number } | undefined)?.seq;
+    db.exec(newSql);
+    db.exec(`INSERT INTO transactions_new (${cols}) SELECT ${cols} FROM transactions`);
+    db.exec(`DROP TABLE transactions`);
+    db.exec(`ALTER TABLE transactions_new RENAME TO transactions`);
+    if (seq !== undefined) {
+      db.prepare(`UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'transactions'`).run(seq);
+    }
+  })();
+  console.log("[db] Migrated transactions: added 'debit' type");
+}
+
 // LN address payout log
 db.exec(`
   CREATE TABLE IF NOT EXISTS ln_payouts (
