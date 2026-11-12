@@ -8,7 +8,7 @@
     "start": "node dist/server/index.js",
     "setup-admin": "tsx src/server/scripts/setup-admin.ts",
     "backfill-zar-rate": "tsx src/server/scripts/backfill-zar-rate.ts",
-    "test": "tsx src/server/scripts/test-refills.ts && tsx src/server/scripts/test-debit.ts && tsx src/server/scripts/test-receive-limits.ts",
+    "test": "tsx src/server/scripts/test-refills.ts && tsx src/server/scripts/test-debit.ts && tsx src/server/scripts/test-receive-limits.ts && tsx src/server/scripts/test-payout-expiry.ts",
     "test:refills": "tsx src/server/scripts/test-refills.ts",
     "backfill-refills": "tsx src/server/scripts/backfill-missed-refills.ts"
   },

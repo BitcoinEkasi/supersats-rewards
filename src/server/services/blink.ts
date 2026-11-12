@@ -30,7 +30,7 @@ async function gql<T>(query: string, variables?: Record<string, unknown>): Promi
 // ── createInvoice ─────────────────────────────────────────────────────────────
 
 // Matches the pending_refills expiry in routes/lnurlp.ts
-const INVOICE_EXPIRY_MINS = 60;
+export const INVOICE_EXPIRY_MINS = 60;
 
 interface InvoiceData {
   lnInvoiceCreate: {

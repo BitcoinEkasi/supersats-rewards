@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { db } from '../db/index.js';
 import { requireApiKey } from '../middleware/apiKeyAuth.js';
 import { generateKeys } from '../services/crypto.js';
-import { createInvoice, payInvoice, getBalance } from '../services/blink.js';
+import { createInvoice, payInvoice, getBalance, INVOICE_EXPIRY_MINS } from '../services/blink.js';
 import { resolveLnAddress } from '../services/lnurl.js';
 import { getZarPerSat } from '../services/zarPrice.js';
 
@@ -411,14 +411,56 @@ router.post('/payout/batch/direct', async (req, res) => {
 
 // ── GET /api/v1/payout/batch/:id ──────────────────────────────────────────────
 
+// Invoice-backed batches can only be paid until their Lightning invoice expires.
+function batchExpiry(batch: { source?: string; created_at: number }): number | null {
+  return batch.source === 'direct' ? null : batch.created_at + INVOICE_EXPIRY_MINS * 60;
+}
+
 router.get('/payout/batch/:id', (req, res) => {
   const batchId = Number(req.params.id);
   const batch = db
-    .prepare('SELECT id, status, total_sats, paid_at FROM payout_batches WHERE id = ?')
+    .prepare('SELECT id, status, total_sats, paid_at, created_at, source FROM payout_batches WHERE id = ?')
     .get(batchId) as any;
   if (!batch) { res.status(404).json({ error: 'Batch not found' }); return; }
   const itemCount = (db.prepare('SELECT COUNT(*) as n FROM payout_batch_items WHERE batch_id = ?').get(batchId) as any).n;
-  res.json({ ...batch, item_count: itemCount });
+  const expiresAt = batchExpiry(batch);
+  const now = Math.floor(Date.now() / 1000);
+  const { created_at: _c, source: _s, ...rest } = batch;
+  res.json({
+    ...rest,
+    item_count: itemCount,
+    expires_at: expiresAt,
+    expired: batch.status === 'pending' && expiresAt !== null && expiresAt < now,
+  });
+});
+
+// ── POST /api/v1/payout/batch/:id/cancel ──────────────────────────────────────
+// Cancels a pending batch whose invoice has expired. Refuses unexpired batches
+// so a cancel can never race with an incoming payment.
+
+router.post('/payout/batch/:id/cancel', (req, res) => {
+  const batchId = Number(req.params.id);
+  const batch = db
+    .prepare('SELECT id, status, created_at, source FROM payout_batches WHERE id = ?')
+    .get(batchId) as any;
+  if (!batch) { res.status(404).json({ error: 'Batch not found' }); return; }
+  if (batch.status === 'cancelled') { res.json({ batch_id: batchId, status: 'cancelled' }); return; }
+  const expiresAt = batchExpiry(batch);
+  const now = Math.floor(Date.now() / 1000);
+  if (batch.status !== 'pending' || expiresAt === null || expiresAt >= now) {
+    res.status(409).json({ error: 'Batch is not an expired pending invoice', status: batch.status, expires_at: expiresAt });
+    return;
+  }
+  const result = db
+    .prepare("UPDATE payout_batches SET status = 'cancelled' WHERE id = ? AND status = 'pending'")
+    .run(batchId);
+  if (result.changes === 0) {
+    const current = db.prepare('SELECT status FROM payout_batches WHERE id = ?').get(batchId) as any;
+    res.status(409).json({ error: 'Batch status changed', status: current?.status });
+    return;
+  }
+  console.log(`[payout] Batch #${batchId} cancelled (invoice expired)`);
+  res.json({ batch_id: batchId, status: 'cancelled' });
 });
 
 export default router;
